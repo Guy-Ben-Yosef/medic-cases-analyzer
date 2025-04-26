@@ -14,13 +14,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def setup_tesseract_for_hebrew():
-    """Configure Tesseract to work with Hebrew."""
-    # Set Tesseract to use Hebrew language pack
-    # Make sure you have the Hebrew language pack installed for Tesseract
-    # You can install it with: sudo apt-get install tesseract-ocr-heb
+def setup_tesseract_for_multilingual():
+    """Configure Tesseract to work with Hebrew and English."""
+    # Set Tesseract to use Hebrew and English language packs
+    # Make sure you have these language packs installed for Tesseract
+    # On Ubuntu: sudo apt-get install tesseract-ocr-heb tesseract-ocr-eng
+    # On macOS: brew install tesseract-lang
     pytesseract.pytesseract.tesseract_cmd = r'tesseract'  # Update path if necessary
-    return '+heb'  # Hebrew language code
+    return 'heb+eng'  # Hebrew and English language codes
 
 def pdf_to_images(pdf_path, dpi=300):
     """Convert PDF to list of images."""
