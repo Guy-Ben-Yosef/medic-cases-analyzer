@@ -25,86 +25,30 @@ def setup_tesseract_for_multilingual():
     pytesseract.pytesseract.tesseract_cmd = r'tesseract'  # Update path if necessary
     return 'heb+eng'  # Hebrew and English language codes
 
-def pdf_to_images(pdf_path, dpi=300, pages=None):
+def perform_ocr_on_image(image, lang):
     """
-    Convert PDF to list of images.
+    Perform OCR on a single image.
     
     Args:
-        pdf_path: Path to the PDF file
-        dpi: DPI resolution for the images (higher is better for OCR)
-        pages: Optional list of page numbers to process (1-based indexing)
-              Example: [1, 3, 5] processes only pages 1, 3, and 5
-    
-    Returns:
-        List of images and their corresponding page numbers
-    """
-    logger.info(f"Converting PDF to images: {pdf_path}")
-    try:
-        if pages:
-            # Convert to 0-based indexing for pdf2image
-            zero_based_pages = [p-1 for p in pages]
-            logger.info(f"Processing only pages: {pages}")
-            images = convert_from_path(pdf_path, dpi=dpi, first_page=min(zero_based_pages)+1, 
-                                     last_page=max(zero_based_pages)+1)
-            
-            # Filter out only the requested pages
-            # Note: pdf2image uses 1-based indexing for first_page/last_page params, but returns
-            # images in sequence starting from 0 relative to first_page
-            page_offset = min(zero_based_pages)
-            result = []
-            for i, img in enumerate(images):
-                if (i + page_offset) in zero_based_pages:
-                    # Store the actual page number (1-based) with each image
-                    result.append((img, i + page_offset + 1))
-            return result
-        else:
-            # Process all pages
-            images = convert_from_path(pdf_path, dpi=dpi)
-            # Return images with their page numbers (1-based)
-            return [(img, i+1) for i, img in enumerate(images)]
-    except Exception as e:
-        logger.error(f"Error converting PDF to images: {str(e)}")
-        raise
-
-def perform_ocr(image_page_pairs, lang):
-    """
-    Perform OCR on a list of images with their corresponding page numbers.
-    
-    Args:
-        image_page_pairs: List of tuples (image, page_number)
+        image: Image to be processed
         lang: Language setting for OCR
     
     Returns:
-        List of dictionaries with page number and extracted text
+        Extracted text from the image
     """
-    results = []
-    logger.info(f"Performing OCR on {len(image_page_pairs)} pages with language: {lang}")
-    
-    for img, page_num in tqdm(image_page_pairs, desc="Processing pages"):
-        try:
-            # Set page segmentation mode to 4 for sparse text with OSD
-            # This works better with mixed right-to-left and left-to-right text
-            # Set OCR engine mode to 3 for default, based on what is available
-            text = pytesseract.image_to_string(img, lang=lang, config='--psm 4 --oem 3')
-            
-            # Process text to handle mixed language directions
-            processed_text = text.strip()
-            
-            # Add page to results
-            results.append({
-                "page_number": page_num,
-                "text": processed_text
-            })
-            
-        except Exception as e:
-            logger.error(f"Error performing OCR on page {page_num}: {str(e)}")
-            results.append({
-                "page_number": page_num,
-                "text": "",
-                "error": str(e)
-            })
-    
-    return results
+    try:
+        # Set page segmentation mode to 4 for sparse text with OSD
+        # This works better with mixed right-to-left and left-to-right text
+        # Set OCR engine mode to 3 for default, based on what is available
+        text = pytesseract.image_to_string(image, lang=lang, config='--psm 4 --oem 3')
+        
+        # Process text to handle mixed language directions
+        processed_text = text.strip()
+        
+        return processed_text
+    except Exception as e:
+        logger.error(f"Error performing OCR: {str(e)}")
+        return ""
 
 def save_to_json(results, output_path):
     """Save OCR results to a JSON file."""
@@ -116,25 +60,18 @@ def save_to_json(results, output_path):
     except Exception as e:
         logger.error(f"Error saving results to JSON: {str(e)}")
         return False
-    """Save OCR results to a JSON file."""
-    try:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-        logger.info(f"Results saved to {output_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Error saving results to JSON: {str(e)}")
-        return False
 
-def process_pdf(pdf_path, output_path=None, page_numbers=None):
+def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300):
     """
     Process a PDF document with mixed Hebrew and English text and save results to JSON.
+    Uses a single loop to process each page - check for highlights, convert to image, and perform OCR.
     
     Args:
         pdf_path: Path to the PDF file
         output_path: Path where to save the JSON output
         page_numbers: Optional list of page numbers to process (1-based indexing)
                      Example: [1, 3, 5] processes only pages 1, 3, and 5
+        dpi: DPI resolution for the image conversion
     """
     # Validate input
     if not os.path.exists(pdf_path):
@@ -150,42 +87,75 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None):
     lang = setup_tesseract_for_multilingual()
     
     try:
-        # Check for highlights/annotations in the PDF
-        highlights_info = check_pdf_for_highlights(pdf_path)
+        # Open the PDF with PyMuPDF for annotations and with PyPDF2 for total page count
+        pdf_doc = fitz.open(pdf_path)
+        pdf_reader = PdfReader(pdf_path)
+        total_pages_in_document = len(pdf_reader.pages)
         
-        # Convert PDF to images (only specified pages if provided)
-        image_page_pairs = pdf_to_images(pdf_path, pages=page_numbers)
-        
-        # Log which pages we're processing
+        # Determine which pages to process
         if page_numbers:
+            pages_to_process = page_numbers
             logger.info(f"Processing selected pages: {page_numbers}")
         else:
+            pages_to_process = list(range(1, total_pages_in_document + 1))
             logger.info(f"Processing all pages")
         
-        # Perform OCR
-        results = perform_ocr(image_page_pairs, lang)
+        results = []
         
-        # Add highlight information to each page's results
-        for page_result in results:
-            page_num = page_result["page_number"]
-            if page_num in highlights_info:
-                page_result["has_annotations"] = highlights_info[page_num]["has_annotations"]
-                page_result["annotation_types"] = highlights_info[page_num]["annotation_types"]
-            else:
-                page_result["has_annotations"] = False
-                page_result["annotation_types"] = []
+        # Single loop to process all selected pages
+        for page_num in tqdm(pages_to_process, desc="Processing pages"):
+            page_result = {"page_number": page_num}
+            
+            try:
+                # Step 1: Check for highlights/annotations on this page
+                # PyMuPDF uses 0-based indexing
+                fitz_page = pdf_doc[page_num - 1]
+                annotations = fitz_page.annots()
+                
+                has_annotations = annotations is not None and len(list(annotations)) > 0
+                annotation_types = []
+                
+                if has_annotations:
+                    for annot in annotations:
+                        annotation_types.append(annot.type[1])
+                    logger.info(f"Page {page_num} has annotations: {annotation_types}")
+                
+                page_result["has_annotations"] = has_annotations
+                page_result["annotation_types"] = annotation_types
+                
+                # Step 2: Convert the specific page to an image
+                # pdf2image uses 1-based indexing for first_page/last_page
+                images = convert_from_path(
+                    pdf_path, 
+                    dpi=dpi, 
+                    first_page=page_num, 
+                    last_page=page_num
+                )
+                
+                if images:
+                    # Step 3: Perform OCR on the image
+                    page_result["text"] = perform_ocr_on_image(images[0], lang)
+                else:
+                    logger.warning(f"No image generated for page {page_num}")
+                    page_result["text"] = ""
+                
+                results.append(page_result)
+                
+            except Exception as e:
+                logger.error(f"Error processing page {page_num}: {str(e)}")
+                page_result["text"] = ""
+                page_result["error"] = str(e)
+                results.append(page_result)
         
-        # Get total number of pages in the original document
-        # This is different from the number of pages we processed
-        reader = PdfReader(pdf_path)
-        total_pages_in_document = len(reader.pages)
+        # Close the PDF document
+        pdf_doc.close()
         
         # Create structured output
         document_results = {
             "document_name": os.path.basename(pdf_path),
             "total_pages_in_document": total_pages_in_document,
-            "pages_processed": len(image_page_pairs),
-            "page_numbers_processed": [p[1] for p in image_page_pairs] if page_numbers else list(range(1, total_pages_in_document + 1)),
+            "pages_processed": len(pages_to_process),
+            "page_numbers_processed": pages_to_process,
             "language": "Hebrew and English",
             "pages": results
         }
@@ -198,116 +168,6 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None):
     except Exception as e:
         logger.error(f"Error processing PDF: {str(e)}")
         return False
-    """
-    Process a PDF document with mixed Hebrew and English text and save results to JSON.
-    
-    Args:
-        pdf_path: Path to the PDF file
-        output_path: Path where to save the JSON output
-        page_numbers: Optional list of page numbers to process (1-based indexing)
-                     Example: [1, 3, 5] processes only pages 1, 3, and 5
-    """
-    # Validate input
-    if not os.path.exists(pdf_path):
-        logger.error(f"PDF file not found: {pdf_path}")
-        return False
-    
-    # Set default output path if not provided
-    if output_path is None:
-        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
-        output_path = f"{base_name}_ocr_results.json"
-    
-    # Setup for multilingual OCR (Hebrew + English)
-    lang = setup_tesseract_for_multilingual()
-    
-    try:
-        # Convert PDF to images (only specified pages if provided)
-        image_page_pairs = pdf_to_images(pdf_path, pages=page_numbers)
-        
-        # Log which pages we're processing
-        if page_numbers:
-            logger.info(f"Processing selected pages: {page_numbers}")
-        else:
-            logger.info(f"Processing all pages")
-        
-        # Perform OCR
-        results = perform_ocr(image_page_pairs, lang)
-        
-        # Get total number of pages in the original document
-        # This is different from the number of pages we processed
-        from PyPDF2 import PdfReader
-        reader = PdfReader(pdf_path)
-        total_pages_in_document = len(reader.pages)
-        
-        # Create structured output
-        document_results = {
-            "document_name": os.path.basename(pdf_path),
-            "total_pages_in_document": total_pages_in_document,
-            "pages_processed": len(image_page_pairs),
-            "page_numbers_processed": [p[1] for p in image_page_pairs] if page_numbers else list(range(1, total_pages_in_document + 1)),
-            "language": "Hebrew and English",
-            "pages": results
-        }
-        
-        # Save results
-        success = save_to_json(document_results, output_path)
-        
-        return success
-    
-    except Exception as e:
-        logger.error(f"Error processing PDF: {str(e)}")
-        return False
-
-def check_pdf_for_highlights(pdf_path):
-    """
-    Check if the PDF contains highlights, annotations, or markers.
-    Returns a dictionary with page numbers as keys and boolean values indicating
-    whether that page has highlights/annotations.
-    
-    Uses PyMuPDF (fitz) which is better at detecting PDF annotations than PyPDF2.
-    """
-    highlighted_pages = {}
-    
-    try:
-        logger.info(f"Checking for highlights/annotations in: {pdf_path}")
-        
-        # Open the PDF with PyMuPDF
-        doc = fitz.open(pdf_path)
-        
-        # Check each page for annotations
-        for page_idx in range(len(doc)):
-            page = doc[page_idx]
-            
-            # Get all annotations on the page
-            annotations = page.annots()
-            
-            # Page numbers in most contexts are 1-based
-            page_num = page_idx + 1
-            
-            # Check if this page has any annotations
-            has_annotations = annotations is not None and len(list(annotations)) > 0
-            
-            # If you want more details about the type of annotations:
-            annotation_types = []
-            if has_annotations:
-                for annot in annotations:
-                    annotation_types.append(annot.type[1])  # Type of annotation (e.g., 'Highlight', 'Underline')
-            
-            # Store whether this page has annotations and what types
-            highlighted_pages[page_num] = {
-                "has_annotations": has_annotations,
-                "annotation_types": annotation_types if has_annotations else []
-            }
-            
-            if has_annotations:
-                logger.info(f"Page {page_num} has annotations: {annotation_types}")
-        
-        doc.close()
-        return highlighted_pages
-        
-    except Exception as e:
-        logger.error(f"Error checking PDF for highlights: {str(e)}")
-        return {}  # Return empty dict on errorimport os
 
 def main():
     """Main function to parse arguments and process PDF."""
@@ -331,12 +191,11 @@ def main():
             # If only start page is provided or end page is invalid
             page_numbers = [args.start_page]
     
-    success = process_pdf(args.pdf_path, args.output, page_numbers)
+    success = process_pdf(args.pdf_path, args.output, page_numbers, args.dpi)
     
     if success:
         logger.info("Processing completed successfully")
     else:
-        logger.error("Processing failed")
         logger.error("Processing failed")
 
 if __name__ == "__main__":
