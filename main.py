@@ -6,6 +6,7 @@ import argparse
 from tqdm import tqdm
 import logging
 from PyPDF2 import PdfReader
+import fitz
 
 # Configure logging
 logging.basicConfig(
@@ -149,6 +150,77 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None):
     lang = setup_tesseract_for_multilingual()
     
     try:
+        # Check for highlights/annotations in the PDF
+        highlights_info = check_pdf_for_highlights(pdf_path)
+        
+        # Convert PDF to images (only specified pages if provided)
+        image_page_pairs = pdf_to_images(pdf_path, pages=page_numbers)
+        
+        # Log which pages we're processing
+        if page_numbers:
+            logger.info(f"Processing selected pages: {page_numbers}")
+        else:
+            logger.info(f"Processing all pages")
+        
+        # Perform OCR
+        results = perform_ocr(image_page_pairs, lang)
+        
+        # Add highlight information to each page's results
+        for page_result in results:
+            page_num = page_result["page_number"]
+            if page_num in highlights_info:
+                page_result["has_annotations"] = highlights_info[page_num]["has_annotations"]
+                page_result["annotation_types"] = highlights_info[page_num]["annotation_types"]
+            else:
+                page_result["has_annotations"] = False
+                page_result["annotation_types"] = []
+        
+        # Get total number of pages in the original document
+        # This is different from the number of pages we processed
+        reader = PdfReader(pdf_path)
+        total_pages_in_document = len(reader.pages)
+        
+        # Create structured output
+        document_results = {
+            "document_name": os.path.basename(pdf_path),
+            "total_pages_in_document": total_pages_in_document,
+            "pages_processed": len(image_page_pairs),
+            "page_numbers_processed": [p[1] for p in image_page_pairs] if page_numbers else list(range(1, total_pages_in_document + 1)),
+            "language": "Hebrew and English",
+            "pages": results
+        }
+        
+        # Save results
+        success = save_to_json(document_results, output_path)
+        
+        return success
+    
+    except Exception as e:
+        logger.error(f"Error processing PDF: {str(e)}")
+        return False
+    """
+    Process a PDF document with mixed Hebrew and English text and save results to JSON.
+    
+    Args:
+        pdf_path: Path to the PDF file
+        output_path: Path where to save the JSON output
+        page_numbers: Optional list of page numbers to process (1-based indexing)
+                     Example: [1, 3, 5] processes only pages 1, 3, and 5
+    """
+    # Validate input
+    if not os.path.exists(pdf_path):
+        logger.error(f"PDF file not found: {pdf_path}")
+        return False
+    
+    # Set default output path if not provided
+    if output_path is None:
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        output_path = f"{base_name}_ocr_results.json"
+    
+    # Setup for multilingual OCR (Hebrew + English)
+    lang = setup_tesseract_for_multilingual()
+    
+    try:
         # Convert PDF to images (only specified pages if provided)
         image_page_pairs = pdf_to_images(pdf_path, pages=page_numbers)
         
@@ -186,16 +258,70 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None):
         logger.error(f"Error processing PDF: {str(e)}")
         return False
 
+def check_pdf_for_highlights(pdf_path):
+    """
+    Check if the PDF contains highlights, annotations, or markers.
+    Returns a dictionary with page numbers as keys and boolean values indicating
+    whether that page has highlights/annotations.
+    
+    Uses PyMuPDF (fitz) which is better at detecting PDF annotations than PyPDF2.
+    """
+    highlighted_pages = {}
+    
+    try:
+        logger.info(f"Checking for highlights/annotations in: {pdf_path}")
+        
+        # Open the PDF with PyMuPDF
+        doc = fitz.open(pdf_path)
+        
+        # Check each page for annotations
+        for page_idx in range(len(doc)):
+            page = doc[page_idx]
+            
+            # Get all annotations on the page
+            annotations = page.annots()
+            
+            # Page numbers in most contexts are 1-based
+            page_num = page_idx + 1
+            
+            # Check if this page has any annotations
+            has_annotations = annotations is not None and len(list(annotations)) > 0
+            
+            # If you want more details about the type of annotations:
+            annotation_types = []
+            if has_annotations:
+                for annot in annotations:
+                    annotation_types.append(annot.type[1])  # Type of annotation (e.g., 'Highlight', 'Underline')
+            
+            # Store whether this page has annotations and what types
+            highlighted_pages[page_num] = {
+                "has_annotations": has_annotations,
+                "annotation_types": annotation_types if has_annotations else []
+            }
+            
+            if has_annotations:
+                logger.info(f"Page {page_num} has annotations: {annotation_types}")
+        
+        doc.close()
+        return highlighted_pages
+        
+    except Exception as e:
+        logger.error(f"Error checking PDF for highlights: {str(e)}")
+        return {}  # Return empty dict on errorimport os
+
 def main():
     """Main function to parse arguments and process PDF."""
     parser = argparse.ArgumentParser(description='Process PDF with Hebrew and English text using OCR')
-    parser.add_argument('pdf_path', help='Path to the PDF file')
+    parser.add_argument('--pdf-path', help='Path to the PDF file')
     parser.add_argument('--output', '-o', help='Output JSON file path')
     parser.add_argument('--start-page', type=int, help='First page to process (starts from 1)')
     parser.add_argument('--end-page', type=int, help='Last page to process')
     parser.add_argument('--dpi', type=int, default=300, help='DPI resolution for image conversion (default: 300)')
     args = parser.parse_args()
     
+    for arg in vars(args):
+        print(f"{arg}: {getattr(args, arg)}")
+
     # Process specific page range if provided
     page_numbers = None
     if args.start_page:
@@ -210,6 +336,7 @@ def main():
     if success:
         logger.info("Processing completed successfully")
     else:
+        logger.error("Processing failed")
         logger.error("Processing failed")
 
 if __name__ == "__main__":
