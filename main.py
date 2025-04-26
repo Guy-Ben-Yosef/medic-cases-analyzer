@@ -95,10 +95,6 @@ def perform_ocr(image_page_pairs, lang):
                 "text": processed_text
             })
             
-            # Log a short preview of the extracted text
-            preview = processed_text[:50] + "..." if len(processed_text) > 50 else processed_text
-            logger.info(f"Page {page_num} processed. Preview: {preview}")
-            
         except Exception as e:
             logger.error(f"Error performing OCR on page {page_num}: {str(e)}")
             results.append({
