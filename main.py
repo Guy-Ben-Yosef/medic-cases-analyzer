@@ -119,6 +119,15 @@ def save_to_json(results, output_path):
     except Exception as e:
         logger.error(f"Error saving results to JSON: {str(e)}")
         return False
+    """Save OCR results to a JSON file."""
+    try:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+        logger.info(f"Results saved to {output_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving results to JSON: {str(e)}")
+        return False
 
 def process_pdf(pdf_path, output_path=None, page_numbers=None):
     """
