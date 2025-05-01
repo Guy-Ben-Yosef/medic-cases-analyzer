@@ -3,6 +3,7 @@ import os
 import tempfile
 import uuid
 import json
+import shutil
 from werkzeug.utils import secure_filename
 
 # Import the functionality from the provided scripts
@@ -11,23 +12,20 @@ from ocr_results_searcher import search_words_in_pages, normalize_text
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# Configure upload and storage folders
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+# Configure storage folders (only results and temporary images)
 RESULTS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
-IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'page_images')
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_images')
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
 app.config['IMAGES_FOLDER'] = IMAGES_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
 # Ensure folders exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
 # Default search words
-DEFAULT_SEARCH_WORDS = ["גב", "יד", "אצבע"]
+DEFAULT_SEARCH_WORDS = ["גב", "יד"]
 
 @app.route('/')
 def index():
@@ -46,71 +44,85 @@ def upload_pdf():
         return jsonify({'error': 'No file selected'}), 400
     
     if file and file.filename.lower().endswith('.pdf'):
-        # Generate a unique filename
+        # Generate a unique ID for this processing session
         unique_id = str(uuid.uuid4())
         filename = secure_filename(file.filename)
         base_filename = os.path.splitext(filename)[0]
         
-        # Save the uploaded PDF
-        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_{filename}")
-        file.save(pdf_path)
+        # Clean up previous image directories to save space
+        cleanup_old_images()
         
-        # Create a document-specific image directory
-        document_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id)
-        os.makedirs(document_images_folder, exist_ok=True)
+        # Create a temporary file for the PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+            # Save uploaded file to the temporary file
+            file.save(temp_pdf.name)
+            pdf_path = temp_pdf.name
         
-        # Process the PDF and save results
-        output_path = os.path.join(app.config['RESULTS_FOLDER'], f"{unique_id}_{base_filename}_ocr_results.json")
-        
-        # Get page range if specified
-        start_page = request.form.get('startPage', type=int)
-        end_page = request.form.get('endPage', type=int)
-        
-        page_numbers = None
-        if start_page:
-            if end_page and end_page >= start_page:
-                page_numbers = list(range(start_page, end_page + 1))
+        try:
+            # Create a document-specific image directory
+            document_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id)
+            os.makedirs(document_images_folder, exist_ok=True)
+            
+            # Process the PDF and save results
+            output_path = os.path.join(app.config['RESULTS_FOLDER'], f"{unique_id}_{base_filename}_ocr_results.json")
+            
+            # Get page range if specified
+            start_page = request.form.get('startPage', type=int)
+            end_page = request.form.get('endPage', type=int)
+            
+            page_numbers = None
+            if start_page:
+                if end_page and end_page >= start_page:
+                    page_numbers = list(range(start_page, end_page + 1))
+                else:
+                    page_numbers = [start_page]
+            
+            # Process the PDF with image saving
+            success = process_pdf(
+                pdf_path, 
+                output_path, 
+                page_numbers, 
+                dpi=300, 
+                image_output_dir=document_images_folder
+            )
+            
+            # Delete the temporary PDF file after processing
+            os.unlink(pdf_path)
+            
+            if success:
+                # Update the JSON file with image URLs for web access
+                with open(output_path, 'r', encoding='utf-8') as f:
+                    results = json.load(f)
+                
+                # Add image URLs for each page
+                for page in results['pages']:
+                    if 'image_path' in page:
+                        page_num = page['page_number']
+                        # Replace absolute path with URL route
+                        page['image_url'] = url_for(
+                            'serve_page_image', 
+                            unique_id=unique_id, 
+                            page_number=page_num
+                        )
+                
+                # Save updated results
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    json.dump(results, f, ensure_ascii=False, indent=2)
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'PDF processed successfully',
+                    'result_id': unique_id,
+                    'original_filename': filename,
+                    'result_path': output_path
+                })
             else:
-                page_numbers = [start_page]
-        
-        # Process the PDF with image saving
-        success = process_pdf(
-            pdf_path, 
-            output_path, 
-            page_numbers, 
-            dpi=300, 
-            image_output_dir=document_images_folder
-        )
-        
-        if success:
-            # Update the JSON file with image URLs for web access
-            with open(output_path, 'r', encoding='utf-8') as f:
-                results = json.load(f)
-            
-            # Add image URLs for each page
-            for page in results['pages']:
-                if 'image_path' in page:
-                    page_num = page['page_number']
-                    # Replace absolute path with URL route
-                    page['image_url'] = url_for(
-                        'serve_page_image', 
-                        unique_id=unique_id, 
-                        page_number=page_num
-                    )
-            
-            # Save updated results
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(results, f, ensure_ascii=False, indent=2)
-            
-            return jsonify({
-                'success': True,
-                'message': 'PDF processed successfully',
-                'result_id': unique_id,
-                'original_filename': filename,
-                'result_path': output_path
-            })
-        else:
-            return jsonify({'error': 'Failed to process PDF'}), 500
+                return jsonify({'error': 'Failed to process PDF'}), 500
+        except Exception as e:
+            # Ensure temporary file is cleaned up in case of error
+            if os.path.exists(pdf_path):
+                os.unlink(pdf_path)
+            return jsonify({'error': f'Error processing PDF: {str(e)}'}), 500
     
     return jsonify({'error': 'Invalid file type. Please upload a PDF file.'}), 400
 
@@ -120,6 +132,26 @@ def serve_page_image(unique_id, page_number):
     image_filename = f"page_{page_number}.png"
     document_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id)
     return send_from_directory(document_images_folder, image_filename)
+
+def cleanup_old_images():
+    """
+    Clean up old image directories to save disk space.
+    Completely purges the temp_images directory before each use.
+    """
+    try:
+        images_folder = app.config['IMAGES_FOLDER']
+        if not os.path.exists(images_folder):
+            return
+            
+        # Simply remove the entire temp_images directory and recreate it
+        shutil.rmtree(images_folder)
+        os.makedirs(images_folder)
+        print(f"Cleaned up temporary images directory: {images_folder}")
+    except Exception as e:
+        print(f"Error cleaning up old images: {str(e)}")
+        # Try to ensure the directory exists even if cleanup fails
+        if not os.path.exists(images_folder):
+            os.makedirs(images_folder)
 
 @app.route('/get-results/<result_id>/<filename>')
 def get_results(result_id, filename):

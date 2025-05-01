@@ -154,7 +154,7 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
                 )
                 
                 if images:
-                    # Save the image if a directory is provided
+                    # Save the image directly to the output directory
                     if image_output_dir:
                         image_filename = f"page_{page_num}.png"
                         image_path = os.path.join(image_output_dir, image_filename)
