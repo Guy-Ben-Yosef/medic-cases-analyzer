@@ -12,13 +12,43 @@
     direction: auto; /* Automatically determine text direction */
 }
 
-.page-image-content {
-    max-width: 100%;
-    max-height: 500px;
-    display: block;
-    margin: 0 auto;
+.image-container {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    overflow: hidden;
     border: 1px solid #ddd;
     border-radius: 4px;
+    background-color: #f8f9fa;
+}
+
+.image-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.page-image-content {
+    max-width: 100%;
+    max-height: 100%;
+    transition: transform 0.1s ease-out;
+    position: relative;
+}
+
+.image-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 5px;
+    border-radius: 4px;
+    display: flex;
+    gap: 5px;
 }
 
 .page-list-item {

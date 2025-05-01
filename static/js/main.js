@@ -223,12 +223,6 @@ function displayResults() {
             pageItemClass = 'search-matched-page';
         }
         
-        // Create matched words badge
-        let matchedWordsBadge = '';
-        if (matchedWords.length > 0) {
-            matchedWordsBadge = `<div class="matched-words-info">${matchedWords.join(', ')}</div>`;
-        }
-        
         // Create page list item
         const pageItem = $('<a>')
             .addClass(`list-group-item list-group-item-action ${pageItemClass}`)
@@ -242,7 +236,6 @@ function displayResults() {
                         ${containsSearchWords ? '<span class="badge bg-success">Matched Words</span>' : ''}
                     </div>
                 </div>
-                ${matchedWordsBadge}
             `);
         
         // Add click event to display page content
@@ -302,9 +295,22 @@ function displayPageContent(pageNumber) {
         
         // Display page image if available
         if (page.image_url) {
+            // Initialize the image viewer with zoom and pan capabilities
             $('#pageImage').html(`
-                <img src="${page.image_url}" class="img-fluid page-image-content" alt="Page ${pageNumber}">
+                <div class="image-container">
+                    <div class="image-controls">
+                        <button id="zoomIn" class="btn btn-sm btn-light" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
+                        <button id="zoomOut" class="btn btn-sm btn-light" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
+                        <button id="resetZoom" class="btn btn-sm btn-light" title="Reset"><i class="bi bi-arrows-angle-contract"></i></button>
+                    </div>
+                    <div class="image-wrapper">
+                        <img src="${page.image_url}" class="page-image-content" id="pageImageContent" alt="Page ${pageNumber}">
+                    </div>
+                </div>
             `);
+            
+            // Initialize zoom and pan functionality
+            initializeImageZoomPan();
         } else {
             $('#pageImage').html('<p class="text-muted">Image not available for this page.</p>');
         }
@@ -370,6 +376,85 @@ function resetResults() {
     $('#pageContent').empty();
     $('#pageImage').empty();
     $('#matchedWords').addClass('d-none');
+}
+
+// Initialize zoom and pan functionality for the page image
+function initializeImageZoomPan() {
+    let scale = 1;
+    const $image = $('#pageImageContent');
+    const $container = $image.parent();
+    
+    // Set initial states
+    $image.css('transform', 'scale(1)');
+    
+    // Zoom in button
+    $('#zoomIn').on('click', function() {
+        scale *= 1.2;  // Increase by 20%
+        updateImageTransform();
+    });
+    
+    // Zoom out button
+    $('#zoomOut').on('click', function() {
+        scale /= 1.2;  // Decrease by 20%
+        if (scale < 0.5) scale = 0.5;  // Limit minimum zoom
+        updateImageTransform();
+    });
+    
+    // Reset zoom button
+    $('#resetZoom').on('click', function() {
+        scale = 1;
+        $image.css({
+            'transform': 'scale(1)',
+            'transform-origin': 'center center',
+            'left': '0px',
+            'top': '0px'
+        });
+    });
+    
+    // Pan functionality using mouse drag
+    let isDragging = false;
+    let lastX, lastY;
+    
+    $container.on('mousedown', function(e) {
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        $container.css('cursor', 'grabbing');
+    });
+    
+    $(document).on('mousemove', function(e) {
+        if (isDragging && scale > 1) {
+            const deltaX = e.clientX - lastX;
+            const deltaY = e.clientY - lastY;
+            
+            const currentLeft = parseInt($image.css('left')) || 0;
+            const currentTop = parseInt($image.css('top')) || 0;
+            
+            $image.css({
+                'left': (currentLeft + deltaX) + 'px',
+                'top': (currentTop + deltaY) + 'px'
+            });
+            
+            lastX = e.clientX;
+            lastY = e.clientY;
+        }
+    });
+    
+    $(document).on('mouseup', function() {
+        isDragging = false;
+        $container.css('cursor', 'grab');
+    });
+    
+    // Update image transform with current scale
+    function updateImageTransform() {
+        $image.css({
+            'transform': `scale(${scale})`,
+            'transform-origin': 'center center'
+        });
+    }
+    
+    // Make container have grab cursor
+    $container.css('cursor', 'grab');
 }
 
 // Show error message
