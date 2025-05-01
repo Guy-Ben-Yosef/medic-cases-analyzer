@@ -172,3 +172,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# GBY - local configuration
+example/
+launch.json
+results/
+temp_images/
+notes/
+docx_files/
+tests.ipynb
