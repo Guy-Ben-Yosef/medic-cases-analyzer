@@ -76,7 +76,7 @@ def save_to_json(results, output_path):
         logger.error(f"Error saving results to JSON: {str(e)}")
         return False
 
-def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300):
+def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_output_dir=None):
     """
     Process a PDF document with mixed Hebrew and English text and save results to JSON.
     Uses a single loop to process each page - check for highlights, convert to image, and perform OCR.
@@ -87,6 +87,7 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300):
         page_numbers: Optional list of page numbers to process (1-based indexing)
                      Example: [1, 3, 5] processes only pages 1, 3, and 5
         dpi: DPI resolution for the image conversion
+        image_output_dir: Directory to save page images
     """
     # Validate input
     if not os.path.exists(pdf_path):
@@ -97,6 +98,11 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300):
     if output_path is None:
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
         output_path = f"{base_name}_ocr_results.json"
+
+    # Create image output directory if needed
+    if image_output_dir:
+        os.makedirs(image_output_dir, exist_ok=True)
+        logger.info(f"Images will be saved to: {image_output_dir}")
     
     # Setup for multilingual OCR (Hebrew + English)
     lang = setup_tesseract_for_multilingual()
@@ -148,6 +154,13 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300):
                 )
                 
                 if images:
+                    # Save the image if a directory is provided
+                    if image_output_dir:
+                        image_filename = f"page_{page_num}.png"
+                        image_path = os.path.join(image_output_dir, image_filename)
+                        images[0].save(image_path, "PNG")
+                        page_result["image_path"] = image_path
+                    
                     # Step 3: Perform OCR on the image
                     page_result["text"] = perform_ocr_on_image(images[0], lang)
                 else:
@@ -192,6 +205,7 @@ def main():
     parser.add_argument('--start-page', type=int, help='First page to process (starts from 1)')
     parser.add_argument('--end-page', type=int, help='Last page to process')
     parser.add_argument('--dpi', type=int, default=300, help='DPI resolution for image conversion (default: 300)')
+    parser.add_argument('--image-dir', help='Directory to save page images')
     args = parser.parse_args()
 
     # Process specific page range if provided
@@ -203,7 +217,7 @@ def main():
             # If only start page is provided or end page is invalid
             page_numbers = [args.start_page]
     
-    success = process_pdf(args.pdf_path, args.output, page_numbers, args.dpi)
+    success = process_pdf(args.pdf_path, args.output, page_numbers, args.dpi, args.image_dir)
     
     if success:
         logger.info("Processing completed successfully")

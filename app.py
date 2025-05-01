@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, url_for
 import os
 import tempfile
 import uuid
@@ -11,16 +11,20 @@ from ocr_results_searcher import search_words_in_pages, normalize_text
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# Configure upload folder
+# Configure upload and storage folders
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 RESULTS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'page_images')
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
+app.config['IMAGES_FOLDER'] = IMAGES_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
 # Ensure folders exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
 # Default search words
 DEFAULT_SEARCH_WORDS = ["important", "note", "key", "conclusion"]
@@ -51,6 +55,10 @@ def upload_pdf():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_{filename}")
         file.save(pdf_path)
         
+        # Create a document-specific image directory
+        document_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id)
+        os.makedirs(document_images_folder, exist_ok=True)
+        
         # Process the PDF and save results
         output_path = os.path.join(app.config['RESULTS_FOLDER'], f"{unique_id}_{base_filename}_ocr_results.json")
         
@@ -65,10 +73,35 @@ def upload_pdf():
             else:
                 page_numbers = [start_page]
         
-        # Process the PDF
-        success = process_pdf(pdf_path, output_path, page_numbers)
+        # Process the PDF with image saving
+        success = process_pdf(
+            pdf_path, 
+            output_path, 
+            page_numbers, 
+            dpi=300, 
+            image_output_dir=document_images_folder
+        )
         
         if success:
+            # Update the JSON file with image URLs for web access
+            with open(output_path, 'r', encoding='utf-8') as f:
+                results = json.load(f)
+            
+            # Add image URLs for each page
+            for page in results['pages']:
+                if 'image_path' in page:
+                    page_num = page['page_number']
+                    # Replace absolute path with URL route
+                    page['image_url'] = url_for(
+                        'serve_page_image', 
+                        unique_id=unique_id, 
+                        page_number=page_num
+                    )
+            
+            # Save updated results
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(results, f, ensure_ascii=False, indent=2)
+            
             return jsonify({
                 'success': True,
                 'message': 'PDF processed successfully',
@@ -80,6 +113,13 @@ def upload_pdf():
             return jsonify({'error': 'Failed to process PDF'}), 500
     
     return jsonify({'error': 'Invalid file type. Please upload a PDF file.'}), 400
+
+@app.route('/page-images/<unique_id>/<int:page_number>')
+def serve_page_image(unique_id, page_number):
+    """Serve a page image."""
+    image_filename = f"page_{page_number}.png"
+    document_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id)
+    return send_from_directory(document_images_folder, image_filename)
 
 @app.route('/get-results/<result_id>/<filename>')
 def get_results(result_id, filename):
@@ -114,7 +154,7 @@ def search_results():
         with open(result_path, 'r', encoding='utf-8') as f:
             ocr_results = json.load(f)
         
-        # Search for words in pages
+        # Search for words in pages (returns dictionary with matched words info)
         search_results = {}
         if 'words' in filter_type or filter_type == 'both':
             search_results = search_words_in_pages(ocr_results, search_words)
@@ -124,7 +164,11 @@ def search_results():
         for page in ocr_results.get('pages', []):
             page_number = page.get('page_number')
             has_annotations = page.get('has_annotations', False)
-            contains_search_words = search_results.get(page_number, False)
+            
+            # Get the search result for this page
+            page_search_result = search_results.get(page_number, {})
+            contains_search_words = page_search_result.get('matched', False)
+            matched_words = page_search_result.get('matched_words', [])
             
             include_page = False
             if filter_type == 'highlights' and has_annotations:
@@ -135,7 +179,9 @@ def search_results():
                 include_page = True
             
             if include_page:
+                # Add search results to page data
                 page['contains_search_words'] = contains_search_words
+                page['matched_words'] = matched_words
                 filtered_pages.append(page)
         
         # Create filtered results

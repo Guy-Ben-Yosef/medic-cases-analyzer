@@ -12,6 +12,15 @@
     direction: auto; /* Automatically determine text direction */
 }
 
+.page-image-content {
+    max-width: 100%;
+    max-height: 500px;
+    display: block;
+    margin: 0 auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
 .page-list-item {
     display: flex;
     justify-content: space-between;
@@ -21,6 +30,14 @@
 .page-list-item .badge-container {
     display: flex;
     gap: 5px;
+}
+
+.matched-words-info {
+    font-size: 0.85rem;
+    color: #0d6efd;
+    padding-top: 5px;
+    word-break: break-word;
+    font-style: italic;
 }
 
 /* Highlights for different page properties */
@@ -53,6 +70,18 @@
     z-index: 1;
 }
 
+/* View mode toggle styling */
+.btn-toggle-group {
+    display: inline-flex;
+    margin-bottom: 15px;
+}
+
+.matched-words-display {
+    font-style: italic;
+    color: #0d6efd;
+    margin-bottom: 10px;
+}
+
 /* Loading spinner styles */
 .spinner-container {
     display: flex;
@@ -72,7 +101,7 @@
         padding: 1rem;
     }
     
-    .page-text-content {
+    .page-text-content, .page-image-content {
         min-height: 200px;
         max-height: 300px;
     }

@@ -28,11 +28,29 @@ $(document).ready(function() {
         }
     });
     
+    // Handle view mode switch
+    $('#viewModeToggle input').on('change', function() {
+        toggleViewMode();
+    });
+    
     // Validate page range inputs
     $('#startPage, #endPage').on('change', function() {
         validatePageRange();
     });
 });
+
+// Toggle between image and text view
+function toggleViewMode() {
+    const isImageMode = $('#viewModeImage').prop('checked');
+    
+    if (isImageMode) {
+        $('#pageImageContainer').removeClass('d-none');
+        $('#pageTextContainer').addClass('d-none');
+    } else {
+        $('#pageImageContainer').addClass('d-none');
+        $('#pageTextContainer').removeClass('d-none');
+    }
+}
 
 // Validate page range inputs
 function validatePageRange() {
@@ -174,6 +192,9 @@ function displayResults() {
     // Show results section
     $('#resultsSection').removeClass('d-none');
     
+    // Set default view mode
+    $('#viewModeImage').prop('checked', true).trigger('change');
+    
     // Update results summary
     const totalPages = filteredResults.total_pages_in_document;
     const matchingPages = filteredResults.filtered_pages.length;
@@ -190,6 +211,7 @@ function displayResults() {
         const pageNumber = page.page_number;
         const hasAnnotations = page.has_annotations;
         const containsSearchWords = page.contains_search_words;
+        const matchedWords = page.matched_words || [];
         
         // Determine page item class
         let pageItemClass = '';
@@ -199,6 +221,12 @@ function displayResults() {
             pageItemClass = 'highlighted-page';
         } else if (containsSearchWords) {
             pageItemClass = 'search-matched-page';
+        }
+        
+        // Create matched words badge
+        let matchedWordsBadge = '';
+        if (matchedWords.length > 0) {
+            matchedWordsBadge = `<div class="matched-words-info">${matchedWords.join(', ')}</div>`;
         }
         
         // Create page list item
@@ -214,6 +242,7 @@ function displayResults() {
                         ${containsSearchWords ? '<span class="badge bg-success">Matched Words</span>' : ''}
                     </div>
                 </div>
+                ${matchedWordsBadge}
             `);
         
         // Add click event to display page content
@@ -237,6 +266,7 @@ function displayResults() {
         // Display message for no matching pages
         $('#pageHeader').text('No matching pages found');
         $('#pageContent').html('<p class="text-muted">No pages match the current filter criteria.</p>');
+        $('#pageImage').html('<p class="text-muted">No pages match the current filter criteria.</p>');
     }
 }
 
@@ -259,8 +289,25 @@ function displayPageContent(pageNumber) {
         }
         $('#pageHeader').append(badges);
         
-        // Prepare page content
+        // Display matched words if any
+        if (page.matched_words && page.matched_words.length > 0) {
+            const matchedWordsStr = page.matched_words.join(', ');
+            $('#matchedWords').text(`Matched Words: ${matchedWordsStr}`).removeClass('d-none');
+        } else {
+            $('#matchedWords').addClass('d-none');
+        }
+        
+        // Prepare page content (text)
         const pageText = page.text || 'No text content available for this page.';
+        
+        // Display page image if available
+        if (page.image_url) {
+            $('#pageImage').html(`
+                <img src="${page.image_url}" class="img-fluid page-image-content" alt="Page ${pageNumber}">
+            `);
+        } else {
+            $('#pageImage').html('<p class="text-muted">Image not available for this page.</p>');
+        }
         
         // Create text direction toggle button
         const toggleButton = $('<button>')
@@ -275,9 +322,9 @@ function displayPageContent(pageNumber) {
         
         // Add toggle button if there's content
         if (pageText && pageText !== 'No text content available for this page.') {
-            $('#pageContent').parent().addClass('page-text-container');
+            $('#pageTextContainer').addClass('page-text-container');
             $('.text-direction-toggle').remove();
-            $('#pageContent').parent().append(toggleButton);
+            $('#pageTextContainer').append(toggleButton);
             
             // Auto-detect if it should be RTL
             if (containsRTLCharacters(pageText)) {
@@ -321,6 +368,8 @@ function resetResults() {
     $('#pageList').empty();
     $('#pageHeader').text('Select a page to view content');
     $('#pageContent').empty();
+    $('#pageImage').empty();
+    $('#matchedWords').addClass('d-none');
 }
 
 // Show error message
