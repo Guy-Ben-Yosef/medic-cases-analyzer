@@ -137,7 +137,25 @@
                             <div class="card-header" id="pageHeader">
                                 Select a page to view content
                             </div>
-                            <!-- Notes Section (New) -->
+
+                            <div class="btn-toolbar mb-3 justify-content-center" id="pageNavigationButtons">
+                                <div class="btn-group me-2">
+                                    <button type="button" class="btn btn-outline-secondary" id="prevPageBtn" title="Previous Page">
+                                        <i class="bi bi-chevron-left"></i> Previous
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary" id="prevMatchingPageBtn" title="Previous Matching Page">
+                                        <i class="bi bi-skip-backward"></i> Previous Match
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary" id="nextMatchingPageBtn" title="Next Matching Page">
+                                        Next Match <i class="bi bi-skip-forward"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="nextPageBtn" title="Next Page">
+                                        Next <i class="bi bi-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Notes Section -->
                             <div class="card-body pb-0">
                                 <div class="mb-3">
                                     <label for="pageNotes" class="form-label">Notes for this page:</label>
@@ -153,7 +171,7 @@
                                     <input type="radio" class="btn-check" name="viewMode" id="viewModeText" autocomplete="off">
                                     <label class="btn btn-outline-primary" for="viewModeText">OCR Text</label>
                                 </div>
-                                
+
                                 <!-- Matched words display -->
                                 <div id="matchedWords" class="matched-words-display d-none"></div>
                                 

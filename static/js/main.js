@@ -354,6 +354,12 @@ function displayResults() {
         }
     });
     
+    // Show the navigation buttons
+    $('#pageNavigationButtons').removeClass('d-none');
+    
+    // Initialize navigation buttons
+    initializeNavigation();
+    
     // If there are pages, select the first one
     if (pagesToDisplay.length > 0) {
         $('#pageList .list-group-item:first').trigger('click');
@@ -363,6 +369,9 @@ function displayResults() {
         $('#pageContent').html('<p class="text-muted">No pages match the current filter criteria.</p>');
         $('#pageImage').html('<p class="text-muted">No pages match the current filter criteria.</p>');
         $('#pageNotes').prop('disabled', true);
+        
+        // Hide navigation buttons when no pages are available
+        $('#pageNavigationButtons').addClass('d-none');
     }
 }
 
@@ -457,6 +466,9 @@ function displayPageContent(pageNumber) {
         // Load notes for this page if they exist
         $('#pageNotes').val(pageNotes[pageNumber] || '');
         $('#pageNotes').prop('disabled', false);
+        
+        // Update navigation buttons after changing the page
+        updateNavigationButtonStates();
     }
 }
 
@@ -570,6 +582,8 @@ function resetResults() {
     filteredResults = null;
     currentPageNumber = null;
     pageNotes = {}; // Clear notes when loading a new document
+    allPageNumbers = []; // Reset navigation arrays
+    matchingPageNumbers = [];
     
     // Reset UI elements
     $('#resultsSection').addClass('d-none');
@@ -579,6 +593,7 @@ function resetResults() {
     $('#pageImage').empty();
     $('#matchedWords').addClass('d-none');
     $('#pageNotes').val('').prop('disabled', true);
+    $('#pageNavigationButtons').addClass('d-none'); // Hide navigation buttons
 }
 
 // Initialize zoom and pan functionality for the page image
@@ -664,4 +679,159 @@ function initializeImageZoomPan() {
 function showError(message) {
     alert(message);
     console.error(message);
+}
+
+// Global variables for navigation
+let allPageNumbers = [];
+let matchingPageNumbers = [];
+
+// Initialize navigation buttons
+function initializeNavigation() {
+    // Reset page number arrays
+    allPageNumbers = [];
+    matchingPageNumbers = [];
+    
+    // Disable all navigation buttons by default
+    $('#prevPageBtn, #nextPageBtn, #prevMatchingPageBtn, #nextMatchingPageBtn').prop('disabled', true);
+    
+    // If no results are available, don't continue
+    if (!filteredResults) {
+        return;
+    }
+    
+    // Get all page numbers in order
+    const pagesArray = filteredResults.all_pages;
+    allPageNumbers = pagesArray.map(page => page.page_number).sort((a, b) => a - b);
+    
+    // Get all matching page numbers (pages with annotations or search word matches)
+    matchingPageNumbers = pagesArray
+        .filter(page => page.has_annotations || page.contains_search_words)
+        .map(page => page.page_number)
+        .sort((a, b) => a - b);
+    
+    // Update navigation button states
+    updateNavigationButtonStates();
+    
+    // Add click handlers to navigation buttons
+    $('#prevPageBtn').off('click').on('click', navigateToPreviousPage);
+    $('#nextPageBtn').off('click').on('click', navigateToNextPage);
+    $('#prevMatchingPageBtn').off('click').on('click', navigateToPreviousMatchingPage);
+    $('#nextMatchingPageBtn').off('click').on('click', navigateToNextMatchingPage);
+}
+
+// Update the state of navigation buttons based on current page
+function updateNavigationButtonStates() {
+    if (!currentPageNumber || allPageNumbers.length === 0) {
+        $('#prevPageBtn, #nextPageBtn, #prevMatchingPageBtn, #nextMatchingPageBtn').prop('disabled', true);
+        return;
+    }
+    
+    // Find current indices
+    const currentAllIndex = allPageNumbers.indexOf(currentPageNumber);
+    const currentMatchingIndex = matchingPageNumbers.indexOf(currentPageNumber);
+    
+    // Previous page button
+    $('#prevPageBtn').prop('disabled', currentAllIndex <= 0);
+    
+    // Next page button
+    $('#nextPageBtn').prop('disabled', currentAllIndex >= allPageNumbers.length - 1);
+    
+    // Previous matching page button
+    // Disable if current page is not a matching page or is the first matching page
+    if (currentMatchingIndex === -1) {
+        // If we're on a non-matching page, find the previous matching page
+        const previousMatches = matchingPageNumbers.filter(page => page < currentPageNumber);
+        $('#prevMatchingPageBtn').prop('disabled', previousMatches.length === 0);
+    } else {
+        $('#prevMatchingPageBtn').prop('disabled', currentMatchingIndex <= 0);
+    }
+    
+    // Next matching page button
+    // Disable if current page is not a matching page or is the last matching page
+    if (currentMatchingIndex === -1) {
+        // If we're on a non-matching page, find the next matching page
+        const nextMatches = matchingPageNumbers.filter(page => page > currentPageNumber);
+        $('#nextMatchingPageBtn').prop('disabled', nextMatches.length === 0);
+    } else {
+        $('#nextMatchingPageBtn').prop('disabled', currentMatchingIndex >= matchingPageNumbers.length - 1);
+    }
+}
+
+// Navigate to previous page
+function navigateToPreviousPage() {
+    if (!currentPageNumber) return;
+    
+    const currentIndex = allPageNumbers.indexOf(currentPageNumber);
+    if (currentIndex > 0) {
+        const previousPageNumber = allPageNumbers[currentIndex - 1];
+        navigateToPage(previousPageNumber);
+    }
+}
+
+// Navigate to next page
+function navigateToNextPage() {
+    if (!currentPageNumber) return;
+    
+    const currentIndex = allPageNumbers.indexOf(currentPageNumber);
+    if (currentIndex < allPageNumbers.length - 1) {
+        const nextPageNumber = allPageNumbers[currentIndex + 1];
+        navigateToPage(nextPageNumber);
+    }
+}
+
+// Navigate to previous matching page
+function navigateToPreviousMatchingPage() {
+    if (!currentPageNumber) return;
+    
+    // Find the previous matching page
+    let previousMatchingPage;
+    
+    // If current page is a matching page
+    const currentMatchingIndex = matchingPageNumbers.indexOf(currentPageNumber);
+    if (currentMatchingIndex > 0) {
+        previousMatchingPage = matchingPageNumbers[currentMatchingIndex - 1];
+    } else {
+        // Find the last matching page that comes before the current page
+        const previousMatches = matchingPageNumbers.filter(page => page < currentPageNumber);
+        if (previousMatches.length > 0) {
+            previousMatchingPage = Math.max(...previousMatches);
+        }
+    }
+    
+    if (previousMatchingPage) {
+        navigateToPage(previousMatchingPage);
+    }
+}
+
+// Navigate to next matching page
+function navigateToNextMatchingPage() {
+    if (!currentPageNumber) return;
+    
+    // Find the next matching page
+    let nextMatchingPage;
+    
+    // If current page is a matching page
+    const currentMatchingIndex = matchingPageNumbers.indexOf(currentPageNumber);
+    if (currentMatchingIndex !== -1 && currentMatchingIndex < matchingPageNumbers.length - 1) {
+        nextMatchingPage = matchingPageNumbers[currentMatchingIndex + 1];
+    } else {
+        // Find the first matching page that comes after the current page
+        const nextMatches = matchingPageNumbers.filter(page => page > currentPageNumber);
+        if (nextMatches.length > 0) {
+            nextMatchingPage = Math.min(...nextMatches);
+        }
+    }
+    
+    if (nextMatchingPage) {
+        navigateToPage(nextMatchingPage);
+    }
+}
+
+// Navigate to a specific page number
+function navigateToPage(pageNumber) {
+    // Save the current page notes before navigating
+    saveNoteForCurrentPage();
+    
+    // Find the page list item and trigger a click to navigate
+    $(`#pageList .list-group-item[data-page="${pageNumber}"]`).trigger('click');
 }
