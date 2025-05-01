@@ -8,13 +8,28 @@ import logging
 from PyPDF2 import PdfReader
 import fitz
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.FileHandler("ocr_process.log"), logging.StreamHandler()]
-)
+# Configure logging - INFO to file, WARNING and ERROR to console
+# File handler for all logs (INFO and above)
+file_handler = logging.FileHandler("ocr_process.log")
+file_handler.setLevel(logging.INFO)
+
+# Console handler only for WARNING and ERROR
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.WARNING)
+
+# Format for both handlers
+log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(log_format)
+console_handler.setFormatter(log_format)
+
+# Configure the root logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Prevent double logging
+logger.propagate = False
 
 def setup_tesseract_for_multilingual():
     """Configure Tesseract to work with Hebrew and English."""
@@ -118,7 +133,7 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300):
                 if has_annotations:
                     for annot in annotations:
                         annotation_types.append(annot.type[1])
-                    logger.info(f"Page {page_num} has annotations: {annotation_types}")
+                    logger.info(f"Page {page_num} has annotations")
                 
                 page_result["has_annotations"] = has_annotations
                 page_result["annotation_types"] = annotation_types
@@ -178,9 +193,6 @@ def main():
     parser.add_argument('--end-page', type=int, help='Last page to process')
     parser.add_argument('--dpi', type=int, default=300, help='DPI resolution for image conversion (default: 300)')
     args = parser.parse_args()
-    
-    for arg in vars(args):
-        print(f"{arg}: {getattr(args, arg)}")
 
     # Process specific page range if provided
     page_numbers = None
