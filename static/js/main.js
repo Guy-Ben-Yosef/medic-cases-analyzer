@@ -195,27 +195,49 @@ function displayResults() {
     // Set default view mode
     $('#viewModeImage').prop('checked', true).trigger('change');
     
+    // Determine which pages to display based on filter type
+    const filterType = filteredResults.search_information.filter_type;
+    const isShowAllPages = filterType === 'all';
+    
+    // Get the appropriate list of pages to display
+    const pagesToDisplay = isShowAllPages ? 
+        filteredResults.all_pages : 
+        filteredResults.filtered_pages;
+    
     // Update results summary
     const totalPages = filteredResults.total_pages_in_document;
-    const matchingPages = filteredResults.filtered_pages.length;
-    $('#resultsSummary').text(
-        `Showing ${matchingPages} pages out of ${totalPages} total pages. ` +
-        `Filter: ${getFilterTypeText(filteredResults.search_information.filter_type)}`
-    );
+    const matchingPages = filteredResults.search_information.total_matching_pages;
+    
+    if (isShowAllPages) {
+        $('#resultsSummary').text(
+            `Showing all ${totalPages} pages. ${matchingPages} pages match the search criteria.`
+        );
+    } else {
+        $('#resultsSummary').text(
+            `Showing ${pagesToDisplay.length} pages out of ${totalPages} total pages. ` +
+            `Filter: ${getFilterTypeText(filterType)}`
+        );
+    }
     
     // Clear existing page list
     $('#pageList').empty();
     
-    // Add filtered pages to the list
-    filteredResults.filtered_pages.forEach(function(page) {
+    // Add pages to the list
+    pagesToDisplay.forEach(function(page) {
         const pageNumber = page.page_number;
         const hasAnnotations = page.has_annotations;
         const containsSearchWords = page.contains_search_words;
         const matchedWords = page.matched_words || [];
         
+        // Determine if this is a matching page
+        const isMatchingPage = hasAnnotations || containsSearchWords;
+        
         // Determine page item class
         let pageItemClass = '';
-        if (hasAnnotations && containsSearchWords) {
+        
+        if (isShowAllPages && !isMatchingPage) {
+            pageItemClass = 'non-matching-page';
+        } else if (hasAnnotations && containsSearchWords) {
             pageItemClass = 'both-matched-page';
         } else if (hasAnnotations) {
             pageItemClass = 'highlighted-page';
@@ -253,11 +275,11 @@ function displayResults() {
     });
     
     // If there are pages, select the first one
-    if (filteredResults.filtered_pages.length > 0) {
+    if (pagesToDisplay.length > 0) {
         $('#pageList .list-group-item:first').trigger('click');
     } else {
         // Display message for no matching pages
-        $('#pageHeader').text('No matching pages found');
+        $('#pageHeader').text('No pages available');
         $('#pageContent').html('<p class="text-muted">No pages match the current filter criteria.</p>');
         $('#pageImage').html('<p class="text-muted">No pages match the current filter criteria.</p>');
     }
@@ -265,8 +287,16 @@ function displayResults() {
 
 // Display page content
 function displayPageContent(pageNumber) {
-    // Find the page in filtered results
-    const page = filteredResults.filtered_pages.find(p => p.page_number === pageNumber);
+    // Determine the correct array to search based on filter type
+    let pagesArray = filteredResults.filtered_pages;
+    
+    // If showing all pages, we need to look in all_pages
+    if (filteredResults.search_information.filter_type === 'all') {
+        pagesArray = filteredResults.all_pages;
+    }
+    
+    // Find the page in the appropriate array
+    const page = pagesArray.find(p => p.page_number === pageNumber);
     
     if (page) {
         // Update page header
@@ -358,6 +388,8 @@ function getFilterTypeText(filterType) {
             return 'Search Words Only';
         case 'both':
             return 'Highlights OR Search Words';
+        case 'all':
+            return 'All Pages';
         default:
             return filterType;
     }

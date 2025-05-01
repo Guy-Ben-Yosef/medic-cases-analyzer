@@ -136,3 +136,24 @@
         max-height: 300px;
     }
 }
+
+.non-matching-page {
+    opacity: 0.6;
+    color: #6c757d;
+}
+
+/* Make the opacity higher on hover to improve visibility */
+.non-matching-page:hover {
+    opacity: 0.9;
+}
+
+/* Optional: Add a subtle transition effect */
+.list-group-item {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Highlight currently selected page even if it's a non-matching page */
+.non-matching-page.active {
+    opacity: 1;
+    color: #fff;  /* Match bootstrap's active style text color */
+}
