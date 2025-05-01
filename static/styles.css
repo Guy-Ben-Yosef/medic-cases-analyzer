@@ -1,0 +1,79 @@
+/* Main styling for PDF OCR and Analysis Tool */
+
+.page-text-content {
+    min-height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: monospace;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    direction: auto; /* Automatically determine text direction */
+}
+
+.page-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.page-list-item .badge-container {
+    display: flex;
+    gap: 5px;
+}
+
+/* Highlights for different page properties */
+.highlighted-page {
+    background-color: #fff3cd;
+}
+
+.search-matched-page {
+    background-color: #d1e7dd;
+}
+
+.both-matched-page {
+    background-color: #cfe2ff;
+}
+
+/* RTL text support */
+.rtl-text {
+    direction: rtl;
+    text-align: right;
+}
+
+.page-text-container {
+    position: relative;
+}
+
+.text-direction-toggle {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 1;
+}
+
+/* Loading spinner styles */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .page-text-content {
+        min-height: 200px;
+        max-height: 300px;
+    }
+}
