@@ -6,6 +6,8 @@ let currentFilename = null;
 let currentResultPath = null;
 let ocrResults = null;
 let filteredResults = null;
+let currentPageNumber = null;
+let pageNotes = {}; // Object to store notes for each page
 
 // Document ready function
 $(document).ready(function() {
@@ -28,6 +30,11 @@ $(document).ready(function() {
         }
     });
     
+    // Handle publish notes button
+    $('#publishNotesBtn').on('click', function() {
+        publishNotes();
+    });
+    
     // Handle view mode switch
     $('#viewModeToggle input').on('change', function() {
         toggleViewMode();
@@ -37,7 +44,46 @@ $(document).ready(function() {
     $('#startPage, #endPage').on('change', function() {
         validatePageRange();
     });
+    
+    // Save notes when user types in the textarea
+    $('#pageNotes').on('input', function() {
+        if (currentPageNumber) {
+            saveNoteForCurrentPage();
+        }
+    });
 });
+
+// Save note for the current page
+function saveNoteForCurrentPage() {
+    if (currentPageNumber) {
+        const noteText = $('#pageNotes').val();
+        pageNotes[currentPageNumber] = noteText;
+        
+        // Optional: Add visual indicator for pages with notes
+        updatePageListItemWithNoteIndicator(currentPageNumber);
+    }
+}
+
+// Update page list item to show note indicator
+function updatePageListItemWithNoteIndicator(pageNumber) {
+    const hasNote = pageNotes[pageNumber] && pageNotes[pageNumber].trim() !== '';
+    
+    // Find the page list item
+    const pageItem = $(`#pageList .list-group-item[data-page="${pageNumber}"]`);
+    
+    // Remove existing note badge
+    pageItem.find('.badge-note').remove();
+    
+    // Add or remove 'has-notes' class based on whether there's a note
+    if (hasNote) {
+        pageItem.addClass('has-notes');
+        pageItem.find('.badge-container').append(
+            '<span class="badge bg-info text-dark badge-note ms-1"><i class="bi bi-pencil-fill"></i></span>'
+        );
+    } else {
+        pageItem.removeClass('has-notes');
+    }
+}
 
 // Toggle between image and text view
 function toggleViewMode() {
@@ -263,6 +309,11 @@ function displayResults() {
         // Add click event to display page content
         pageItem.on('click', function(e) {
             e.preventDefault();
+            
+            // Save note for current page before switching
+            saveNoteForCurrentPage();
+            
+            // Display new page content
             displayPageContent(pageNumber);
             
             // Highlight selected page
@@ -272,6 +323,11 @@ function displayResults() {
         
         // Add to page list
         $('#pageList').append(pageItem);
+        
+        // Add note indicator if there's a note for this page
+        if (pageNotes[pageNumber] && pageNotes[pageNumber].trim() !== '') {
+            updatePageListItemWithNoteIndicator(pageNumber);
+        }
     });
     
     // If there are pages, select the first one
@@ -282,11 +338,15 @@ function displayResults() {
         $('#pageHeader').text('No pages available');
         $('#pageContent').html('<p class="text-muted">No pages match the current filter criteria.</p>');
         $('#pageImage').html('<p class="text-muted">No pages match the current filter criteria.</p>');
+        $('#pageNotes').prop('disabled', true);
     }
 }
 
 // Display page content
 function displayPageContent(pageNumber) {
+    // Save current page number
+    currentPageNumber = pageNumber;
+    
     // Determine the correct array to search based on filter type
     let pagesArray = filteredResults.filtered_pages;
     
@@ -369,7 +429,86 @@ function displayPageContent(pageNumber) {
                 $('#pageContent').removeClass('rtl-text');
             }
         }
+        
+        // Load notes for this page if they exist
+        $('#pageNotes').val(pageNotes[pageNumber] || '');
+        $('#pageNotes').prop('disabled', false);
     }
+}
+
+// Publish all notes to a text file
+function publishNotes() {
+    if (!ocrResults || !currentFilename) {
+        showError('No document loaded to publish notes from.');
+        return;
+    }
+    
+    // Make sure to save the current page's notes
+    saveNoteForCurrentPage();
+    
+    // Check if there are any notes
+    const hasNotes = Object.values(pageNotes).some(note => note && note.trim() !== '');
+    
+    if (!hasNotes) {
+        alert('No notes found. Please add notes to at least one page before publishing.');
+        return;
+    }
+    
+    // Prepare request data
+    const requestData = {
+        notes: pageNotes,
+        filename: currentFilename
+    };
+    
+    // Set button to loading state
+    const $publishBtn = $('#publishNotesBtn');
+    const originalBtnHtml = $publishBtn.html();
+    $publishBtn.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Publishing...');
+    $publishBtn.prop('disabled', true);
+    
+    // Use the server-side endpoint to generate and download the notes file
+    fetch('/publish-notes', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to publish notes');
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        // Create a timestamp for the filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        const downloadFilename = `notes_${currentFilename}_${timestamp}.txt`;
+        
+        // Create a download link and trigger download
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.download = downloadFilename;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+        
+        // Show success message
+        alert('Notes published successfully!');
+    })
+    .catch(error => {
+        console.error('Error publishing notes:', error);
+        showError('Failed to publish notes: ' + error.message);
+    })
+    .finally(() => {
+        // Reset button state
+        $publishBtn.html(originalBtnHtml);
+        $publishBtn.prop('disabled', false);
+    });
 }
 
 // Check if text contains RTL characters (Hebrew, Arabic, etc.)
@@ -400,6 +539,8 @@ function resetResults() {
     // Reset global variables
     ocrResults = null;
     filteredResults = null;
+    currentPageNumber = null;
+    pageNotes = {}; // Clear notes when loading a new document
     
     // Reset UI elements
     $('#resultsSection').addClass('d-none');
@@ -408,6 +549,7 @@ function resetResults() {
     $('#pageContent').empty();
     $('#pageImage').empty();
     $('#matchedWords').addClass('d-none');
+    $('#pageNotes').val('').prop('disabled', true);
 }
 
 // Initialize zoom and pan functionality for the page image

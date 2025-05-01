@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify, render_template, send_from_directory, url_for
+from flask import Flask, request, jsonify, render_template, send_from_directory, url_for, make_response
 import os
 import tempfile
 import uuid
 import json
 import shutil
+import datetime
 from werkzeug.utils import secure_filename
 
 # Import the functionality from the provided scripts
@@ -15,14 +16,17 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 # Configure storage folders (only results and temporary images)
 RESULTS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
 IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_images')
+NOTES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'notes')
 
 app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
 app.config['IMAGES_FOLDER'] = IMAGES_FOLDER
+app.config['NOTES_FOLDER'] = NOTES_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
 # Ensure folders exist
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
+os.makedirs(NOTES_FOLDER, exist_ok=True)
 
 # Default search words
 DEFAULT_SEARCH_WORDS = ["גב", "יד"]
@@ -243,67 +247,6 @@ def search_results():
     
     except Exception as e:
         return jsonify({'error': f'Error processing search: {str(e)}'}), 500
-    """Search within OCR results for specific words."""
-    data = request.get_json()
-    
-    if not data or 'resultPath' not in data or 'searchWords' not in data:
-        return jsonify({'error': 'Missing required parameters'}), 400
-    
-    result_path = data['resultPath']
-    search_words = set(data['searchWords'])
-    filter_type = data.get('filterType', 'both')  # 'highlights', 'words', or 'both'
-    
-    if not os.path.exists(result_path):
-        return jsonify({'error': 'Results file not found'}), 404
-    
-    try:
-        # Load OCR results
-        with open(result_path, 'r', encoding='utf-8') as f:
-            ocr_results = json.load(f)
-        
-        # Search for words in pages (returns dictionary with matched words info)
-        search_results = {}
-        if 'words' in filter_type or filter_type == 'both':
-            search_results = search_words_in_pages(ocr_results, search_words)
-        
-        # Filter pages based on criteria
-        filtered_pages = []
-        for page in ocr_results.get('pages', []):
-            page_number = page.get('page_number')
-            has_annotations = page.get('has_annotations', False)
-            
-            # Get the search result for this page
-            page_search_result = search_results.get(page_number, {})
-            contains_search_words = page_search_result.get('matched', False)
-            matched_words = page_search_result.get('matched_words', [])
-            
-            include_page = False
-            if filter_type == 'highlights' and has_annotations:
-                include_page = True
-            elif filter_type == 'words' and contains_search_words:
-                include_page = True
-            elif filter_type == 'both' and (has_annotations or contains_search_words):
-                include_page = True
-            
-            if include_page:
-                # Add search results to page data
-                page['contains_search_words'] = contains_search_words
-                page['matched_words'] = matched_words
-                filtered_pages.append(page)
-        
-        # Create filtered results
-        filtered_results = ocr_results.copy()
-        filtered_results['filtered_pages'] = filtered_pages
-        filtered_results['search_information'] = {
-            'search_words': list(search_words),
-            'filter_type': filter_type,
-            'total_matching_pages': len(filtered_pages)
-        }
-        
-        return jsonify(filtered_results)
-    
-    except Exception as e:
-        return jsonify({'error': f'Error processing search: {str(e)}'}), 500
 
 @app.route('/download-json/<result_id>/<filename>')
 def download_json(result_id, filename):
@@ -314,6 +257,53 @@ def download_json(result_id, filename):
         f"{result_id}_{base_filename}_ocr_results.json",
         as_attachment=True
     )
+
+@app.route('/publish-notes', methods=['POST'])
+def publish_notes():
+    """Generate and save a text file with notes for all pages."""
+    data = request.get_json()
+    
+    if not data or 'notes' not in data or 'filename' not in data:
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    filename = secure_filename(data['filename'])
+    base_filename = os.path.splitext(filename)[0]
+    notes_data = data['notes']
+    
+    # Create notes content
+    notes_content = f"Notes for {filename}\n"
+    notes_content += f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    notes_content += f"-------------------------------------------\n\n"
+    
+    # Sort page numbers numerically
+    page_numbers = sorted([int(page) for page in notes_data.keys() if notes_data[page].strip()])
+    
+    # Add each page's notes to the content
+    for page_num in page_numbers:
+        page_note = notes_data.get(str(page_num), '').strip()
+        if page_note:
+            notes_content += f"# עמוד {page_num}\n"
+            notes_content += f"{page_note}\n\n"
+    
+    try:
+        # Generate a unique filename with timestamp
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        notes_filename = f"notes_{base_filename}_{timestamp}.txt"
+        notes_path = os.path.join(app.config['NOTES_FOLDER'], notes_filename)
+        
+        # Save notes to file
+        with open(notes_path, 'w', encoding='utf-8') as f:
+            f.write(notes_content)
+        
+        # Prepare response for file download
+        response = make_response(notes_content)
+        response.headers["Content-Disposition"] = f"attachment; filename={notes_filename}"
+        response.headers["Content-Type"] = "text/plain"
+        
+        return response
+    
+    except Exception as e:
+        return jsonify({'error': f'Error publishing notes: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
