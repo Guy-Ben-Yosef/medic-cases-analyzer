@@ -18,8 +18,8 @@ def setup_project():
         'static/css',
         'static/js',
         'templates',
-        'uploads',
-        'results'
+        'results',
+        'temp_images'
     ]
     
     # Create directories if they don't exist

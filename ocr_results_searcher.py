@@ -1,7 +1,7 @@
 import json
 import argparse
 import sys
-from typing import List, Set, Dict, Any
+from typing import List, Set, Dict, Any, Tuple
 
 
 def load_ocr_results(json_path: str) -> Dict[str, Any]:
@@ -45,7 +45,7 @@ def normalize_text(text: str) -> str:
     return text.lower().strip()
 
 
-def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -> Dict[int, bool]:
+def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -> Dict[int, Dict[str, Any]]:
     """
     Search for words in each page of the OCR results.
     
@@ -54,7 +54,9 @@ def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -
         search_words: Set of words to search for
         
     Returns:
-        Dictionary mapping page numbers to boolean values (True if at least one word is found)
+        Dictionary mapping page numbers to search results containing:
+        - matched: boolean indicating if any word was found
+        - matched_words: list of words that were found on the page
     """
     results = {}
     
@@ -69,22 +71,31 @@ def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -
         # Normalize page text
         normalized_page_text = normalize_text(page_text)
         
-        # Check if any search word is in the page text
-        word_found = any(word in normalized_page_text for word in normalized_search_words)
+        # Find which specific words matched
+        matched_words = []
+        for word in normalized_search_words:
+            if word in normalized_page_text:
+                matched_words.append(word)
         
-        results[page_number] = word_found
+        # Check if any search word is in the page text
+        word_found = len(matched_words) > 0
+        
+        results[page_number] = {
+            "matched": word_found,
+            "matched_words": matched_words
+        }
     
     return results
 
 
-def print_search_results(ocr_results: Dict[str, Any], search_results: Dict[int, bool], 
+def print_search_results(ocr_results: Dict[str, Any], search_results: Dict[int, Dict[str, Any]], 
                          search_words: Set[str]) -> None:
     """
     Print the search results in a user-friendly format.
     
     Args:
         ocr_results: Dictionary containing OCR results
-        search_results: Dictionary mapping page numbers to boolean values
+        search_results: Dictionary mapping page numbers to search results
         search_words: Set of words that were searched for
     """
     document_name = ocr_results.get("document_name", "Unknown Document")
@@ -93,33 +104,35 @@ def print_search_results(ocr_results: Dict[str, Any], search_results: Dict[int, 
     print(f"Total pages in document: {ocr_results.get('total_pages_in_document', 0)}")
     print(f"Pages processed: {ocr_results.get('pages_processed', 0)}")
     print("\nResults:")
-    print("-" * 60)
-    print(f"{'Page Number':<15} {'Contains Search Words':<20} {'Has Annotations':<20}")
-    print("-" * 60)
+    print("-" * 80)
+    print(f"{'Page Number':<12} {'Contains Words':<15} {'Has Annotations':<15} {'Matched Words':<30}")
+    print("-" * 80)
     
     # Get page data from OCR results for annotation info
     page_data = {page.get("page_number"): page for page in ocr_results.get("pages", [])}
     
-    for page_num, contains_words in sorted(search_results.items()):
+    for page_num, search_result in sorted(search_results.items()):
         page_info = page_data.get(page_num, {})
         has_annotations = page_info.get("has_annotations", False)
+        contains_words = search_result.get("matched", False)
+        matched_words = search_result.get("matched_words", [])
         
-        print(f"{page_num:<15} {str(contains_words):<20} {str(has_annotations):<20}")
+        print(f"{page_num:<12} {str(contains_words):<15} {str(has_annotations):<15} {', '.join(matched_words):<30}")
     
     # Summary stats
-    matching_pages = sum(1 for result in search_results.values() if result)
-    print("-" * 60)
+    matching_pages = sum(1 for result in search_results.values() if result.get("matched", False))
+    print("-" * 80)
     print(f"Summary: {matching_pages} out of {len(search_results)} processed pages contain search words.")
 
 
-def save_results_to_json(ocr_results: Dict[str, Any], search_results: Dict[int, bool], 
+def save_results_to_json(ocr_results: Dict[str, Any], search_results: Dict[int, Dict[str, Any]], 
                         search_words: Set[str], output_path: str) -> None:
     """
     Save the search results to a JSON file.
     
     Args:
         ocr_results: Dictionary containing OCR results
-        search_results: Dictionary mapping page numbers to boolean values
+        search_results: Dictionary mapping page numbers to search results
         search_words: Set of words that were searched for
         output_path: Path where to save the JSON output
     """
@@ -129,14 +142,18 @@ def save_results_to_json(ocr_results: Dict[str, Any], search_results: Dict[int, 
     # Add search information
     enhanced_results["search_information"] = {
         "search_words": list(search_words),
-        "total_matching_pages": sum(1 for result in search_results.values() if result),
+        "total_matching_pages": sum(1 for result in search_results.values() if result.get("matched", False)),
     }
     
     # Update each page with search results
     for page in enhanced_results.get("pages", []):
         page_number = page.get("page_number")
-        contains_search_words = search_results.get(page_number, False)
+        search_result = search_results.get(page_number, {})
+        contains_search_words = search_result.get("matched", False)
+        matched_words = search_result.get("matched_words", [])
+        
         page["contains_search_words"] = contains_search_words
+        page["matched_words"] = matched_words
     
     # Save to JSON file
     try:
