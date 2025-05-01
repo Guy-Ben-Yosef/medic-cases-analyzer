@@ -176,6 +176,81 @@ def search_results():
     
     result_path = data['resultPath']
     search_words = set(data['searchWords'])
+    filter_type = data.get('filterType', 'both')  # 'highlights', 'words', 'both', or 'all'
+    
+    if not os.path.exists(result_path):
+        return jsonify({'error': 'Results file not found'}), 404
+    
+    try:
+        # Load OCR results
+        with open(result_path, 'r', encoding='utf-8') as f:
+            ocr_results = json.load(f)
+        
+        # Search for words in pages (returns dictionary with matched words info)
+        search_results = {}
+        if 'words' in filter_type or filter_type == 'both' or filter_type == 'all':
+            search_results = search_words_in_pages(ocr_results, search_words)
+        
+        # Prepare all pages for filtering
+        all_pages = ocr_results.get('pages', []).copy()
+        
+        # Add search results to each page
+        for page in all_pages:
+            page_number = page.get('page_number')
+            page_search_result = search_results.get(page_number, {})
+            contains_search_words = page_search_result.get('matched', False)
+            matched_words = page_search_result.get('matched_words', [])
+            
+            # Add search results to page data
+            page['contains_search_words'] = contains_search_words
+            page['matched_words'] = matched_words
+        
+        # Filter pages based on criteria, unless we want to show all pages
+        filtered_pages = []
+        if filter_type == 'all':
+            # Include all pages, but still mark which ones match criteria
+            filtered_pages = all_pages
+        else:
+            # Filter pages based on selected criteria
+            for page in all_pages:
+                has_annotations = page.get('has_annotations', False)
+                contains_search_words = page.get('contains_search_words', False)
+                
+                include_page = False
+                if filter_type == 'highlights' and has_annotations:
+                    include_page = True
+                elif filter_type == 'words' and contains_search_words:
+                    include_page = True
+                elif filter_type == 'both' and (has_annotations or contains_search_words):
+                    include_page = True
+                
+                if include_page:
+                    filtered_pages.append(page)
+        
+        # Create filtered results
+        filtered_results = ocr_results.copy()
+        filtered_results['filtered_pages'] = filtered_pages
+        filtered_results['all_pages'] = all_pages  # Include all pages for reference
+        filtered_results['search_information'] = {
+            'search_words': list(search_words),
+            'filter_type': filter_type,
+            'total_matching_pages': len(filtered_pages) if filter_type != 'all' else sum(
+                1 for page in all_pages if page.get('has_annotations', False) or page.get('contains_search_words', False)
+            )
+        }
+        
+        return jsonify(filtered_results)
+    
+    except Exception as e:
+        return jsonify({'error': f'Error processing search: {str(e)}'}), 500
+    """Search within OCR results for specific words."""
+    data = request.get_json()
+    
+    if not data or 'resultPath' not in data or 'searchWords' not in data:
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    result_path = data['resultPath']
+    search_words = set(data['searchWords'])
     filter_type = data.get('filterType', 'both')  # 'highlights', 'words', or 'both'
     
     if not os.path.exists(result_path):
