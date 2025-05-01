@@ -5,6 +5,7 @@ import uuid
 import json
 import shutil
 import datetime
+import pypandoc
 from werkzeug.utils import secure_filename
 
 # Import the functionality from the provided scripts
@@ -17,16 +18,19 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 RESULTS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
 IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_images')
 NOTES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'notes')
+DOCX_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docx_files')
 
 app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
 app.config['IMAGES_FOLDER'] = IMAGES_FOLDER
 app.config['NOTES_FOLDER'] = NOTES_FOLDER
+app.config['DOCX_FOLDER'] = DOCX_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
 # Ensure folders exist
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
 os.makedirs(NOTES_FOLDER, exist_ok=True)
+os.makedirs(DOCX_FOLDER, exist_ok=True)
 
 # Default search words
 DEFAULT_SEARCH_WORDS = ["גב", "יד"]
@@ -260,7 +264,7 @@ def download_json(result_id, filename):
 
 @app.route('/publish-notes', methods=['POST'])
 def publish_notes():
-    """Generate and save a text file with notes for all pages."""
+    """Generate and save a docx file with notes for all pages."""
     data = request.get_json()
     
     if not data or 'notes' not in data or 'filename' not in data:
@@ -270,10 +274,10 @@ def publish_notes():
     base_filename = os.path.splitext(filename)[0]
     notes_data = data['notes']
     
-    # Create notes content
-    notes_content = f"Notes for {filename}\n"
-    notes_content += f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    notes_content += f"-------------------------------------------\n\n"
+    # Create notes content in markdown format
+    markdown_content = f"# Notes for {filename}\n\n"
+    markdown_content += f"**Date:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    markdown_content += f"---\n\n"
     
     # Sort page numbers numerically
     page_numbers = sorted([int(page) for page in notes_data.keys() if notes_data[page].strip()])
@@ -282,28 +286,94 @@ def publish_notes():
     for page_num in page_numbers:
         page_note = notes_data.get(str(page_num), '').strip()
         if page_note:
-            notes_content += f"# עמוד {page_num}\n"
-            notes_content += f"{page_note}\n\n"
+            markdown_content += f"## עמוד {page_num}\n\n"
+            markdown_content += f"{page_note}\n\n"
     
     try:
         # Generate a unique filename with timestamp
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        notes_filename = f"notes_{base_filename}_{timestamp}.txt"
-        notes_path = os.path.join(app.config['NOTES_FOLDER'], notes_filename)
         
-        # Save notes to file
-        with open(notes_path, 'w', encoding='utf-8') as f:
-            f.write(notes_content)
+        # Generate temporary filenames for markdown and docx
+        temp_md_filename = f"temp_notes_{base_filename}_{timestamp}.md"
+        docx_filename = f"notes_{base_filename}_{timestamp}.docx"
         
-        # Prepare response for file download
-        response = make_response(notes_content)
-        response.headers["Content-Disposition"] = f"attachment; filename={notes_filename}"
-        response.headers["Content-Type"] = "text/plain"
+        # Ensure directories exist
+        os.makedirs(app.config['NOTES_FOLDER'], exist_ok=True)
+        os.makedirs(app.config['DOCX_FOLDER'], exist_ok=True)
         
-        return response
+        # Full paths for files
+        temp_md_path = os.path.join(app.config['NOTES_FOLDER'], temp_md_filename)
+        docx_path = os.path.join(app.config['DOCX_FOLDER'], docx_filename)
+        
+        # Save markdown to a temporary file
+        with open(temp_md_path, 'w', encoding='utf-8') as f:
+            f.write(markdown_content)
+        
+        # Check if pandoc is installed
+        try:
+            import pypandoc
+            # Get pandoc version to verify installation
+            version = pypandoc.get_pandoc_version()
+            print(f"Pandoc version: {version}")
+        except Exception as e:
+            print(f"Error checking pandoc: {str(e)}")
+            # Fallback to text file if pandoc conversion fails
+            return jsonify({'error': f'Pandoc not available: {str(e)}'}), 500
+        
+        # Check if reference file exists
+        reference_docx_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'styles', 'reference.docx')
+        reference_arg = ['--reference-doc=' + reference_docx_path] if os.path.exists(reference_docx_path) else []
+        
+        print(f"Converting {temp_md_path} to {docx_path}")
+        
+        try:
+            # Try conversion with explicit pandoc path first
+            pypandoc.convert_file(
+                temp_md_path,
+                'docx',
+                outputfile=docx_path,
+                extra_args=['--standalone'] + reference_arg
+            )
+        except Exception as pandoc_error:
+            print(f"Error converting with pandoc: {str(pandoc_error)}")
+            
+            # As a fallback, let's return a text file instead of failing completely
+            text_filename = f"notes_{base_filename}_{timestamp}.txt"
+            text_path = os.path.join(app.config['NOTES_FOLDER'], text_filename)
+            
+            # Copy the markdown file to text file (they're essentially the same format)
+            shutil.copy(temp_md_path, text_path)
+            
+            # Clean up the temporary file
+            if os.path.exists(temp_md_path):
+                os.remove(temp_md_path)
+                
+            # Return text file with warning
+            response = make_response(open(text_path, 'r', encoding='utf-8').read())
+            response.headers["Content-Disposition"] = f"attachment; filename={text_filename}"
+            response.headers["Content-Type"] = "text/plain"
+            return response
+        
+        # Clean up the temporary markdown file
+        if os.path.exists(temp_md_path):
+            os.remove(temp_md_path)
+        
+        if not os.path.exists(docx_path):
+            return jsonify({'error': 'DOCX file was not created successfully'}), 500
+            
+        # Return the docx file for download
+        return send_from_directory(
+            app.config['DOCX_FOLDER'],
+            docx_filename,
+            as_attachment=True
+        )
     
     except Exception as e:
-        return jsonify({'error': f'Error publishing notes: {str(e)}'}), 500
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error converting to DOCX: {str(e)}")
+        print(f"Detailed error: {error_details}")
+        return jsonify({'error': f'Error converting to DOCX: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

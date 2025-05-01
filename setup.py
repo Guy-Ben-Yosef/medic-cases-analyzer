@@ -19,7 +19,10 @@ def setup_project():
         'static/js',
         'templates',
         'results',
-        'temp_images'
+        'temp_images',
+        'notes',
+        'docx_files',
+        'styles'
     ]
     
     # Create directories if they don't exist

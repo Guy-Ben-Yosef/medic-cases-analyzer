@@ -24,6 +24,20 @@ else
     echo "Tesseract OCR is already installed."
 fi
 
+# Check if Pandoc is installed
+if ! command -v pandoc &> /dev/null; then
+    echo "Pandoc is not installed. Installing with Homebrew..."
+    if ! command -v brew &> /dev/null; then
+        echo "Homebrew is not installed. Please install Homebrew first:"
+        echo '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        exit 1
+    fi
+    brew install pandoc
+    echo "Pandoc installed."
+else
+    echo "Pandoc is already installed."
+fi
+
 # Check if required language packs are installed
 if ! tesseract --list-langs | grep -q "eng"; then
     echo "English language pack for Tesseract is missing. Installing..."
