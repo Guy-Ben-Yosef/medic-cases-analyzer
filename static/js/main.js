@@ -31,9 +31,12 @@ $(document).ready(function() {
     });
     
     // Handle publish notes button
-    $('#publishNotesBtn').on('click', function() {
+    $('#publishNotesBtn').off('click').on('click', function() {
         publishNotes();
     });
+    
+    // Update publish notes button text to show DOCX
+    updatePublishButtonText();
     
     // Handle view mode switch
     $('#viewModeToggle input').on('change', function() {
@@ -436,7 +439,7 @@ function displayPageContent(pageNumber) {
     }
 }
 
-// Publish all notes to a text file
+// Publish all notes to a docx file
 function publishNotes() {
     if (!ocrResults || !currentFilename) {
         showError('No document loaded to publish notes from.');
@@ -463,10 +466,10 @@ function publishNotes() {
     // Set button to loading state
     const $publishBtn = $('#publishNotesBtn');
     const originalBtnHtml = $publishBtn.html();
-    $publishBtn.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Publishing...');
+    $publishBtn.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting...');
     $publishBtn.prop('disabled', true);
     
-    // Use the server-side endpoint to generate and download the notes file
+    // Use the server-side endpoint to generate and download the docx file
     fetch('/publish-notes', {
         method: 'POST',
         headers: {
@@ -476,14 +479,14 @@ function publishNotes() {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Failed to publish notes');
+            throw new Error('Failed to export notes to DOCX');
         }
         return response.blob();
     })
     .then(blob => {
         // Create a timestamp for the filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        const downloadFilename = `notes_${currentFilename}_${timestamp}.txt`;
+        const downloadFilename = `notes_${currentFilename}_${timestamp}.docx`;
         
         // Create a download link and trigger download
         const url = URL.createObjectURL(blob);
@@ -498,17 +501,22 @@ function publishNotes() {
         URL.revokeObjectURL(url);
         
         // Show success message
-        alert('Notes published successfully!');
+        alert('Notes exported to DOCX successfully!');
     })
     .catch(error => {
         console.error('Error publishing notes:', error);
-        showError('Failed to publish notes: ' + error.message);
+        showError('Failed to export notes to DOCX: ' + error.message);
     })
     .finally(() => {
         // Reset button state
         $publishBtn.html(originalBtnHtml);
         $publishBtn.prop('disabled', false);
     });
+}
+
+// Function to update the Publish Notes button text and icon
+function updatePublishButtonText() {
+    $('#publishNotesBtn').html('<i class="bi bi-file-earmark-word"></i> Export Notes to DOCX');
 }
 
 // Check if text contains RTL characters (Hebrew, Arabic, etc.)
