@@ -27,7 +27,7 @@ os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
 # Default search words
-DEFAULT_SEARCH_WORDS = ["important", "note", "key", "conclusion"]
+DEFAULT_SEARCH_WORDS = ["גב", "יד", "אצבע"]
 
 @app.route('/')
 def index():
