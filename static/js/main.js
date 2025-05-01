@@ -200,6 +200,27 @@ function searchAndFilterResults() {
     const searchWordsInput = $('#searchWords').val().trim();
     const searchWords = searchWordsInput.split(/\s*,\s*/).filter(word => word.length > 0);
     
+    // Inform user about whole word matching
+    if (searchWords.length > 0) {
+        const infoMessage = $('<div>')
+            .addClass('alert alert-info mb-2')
+            .html('<strong>Note:</strong> Search will match whole words only. For example, searching for "pose" will not match "compose".')
+            .hide();
+        
+        // Add message if not already shown
+        if ($('#searchForm .alert-info').length === 0) {
+            $('#searchForm .btn-success').before(infoMessage);
+            infoMessage.fadeIn();
+            
+            // Set a timeout to remove the message after a few seconds
+            setTimeout(() => {
+                infoMessage.fadeOut(() => {
+                    infoMessage.remove();
+                });
+            }, 5000);
+        }
+    }
+    
     // Get filter type
     const filterType = $('input[name="filterType"]:checked').val();
     

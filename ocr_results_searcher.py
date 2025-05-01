@@ -1,6 +1,7 @@
 import json
 import argparse
 import sys
+import re
 from typing import List, Set, Dict, Any, Tuple
 
 
@@ -47,7 +48,8 @@ def normalize_text(text: str) -> str:
 
 def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -> Dict[int, Dict[str, Any]]:
     """
-    Search for words in each page of the OCR results.
+    Search for whole words in each page of the OCR results.
+    Only matches complete words, not parts of larger words.
     
     Args:
         ocr_results: Dictionary containing OCR results
@@ -71,10 +73,13 @@ def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -
         # Normalize page text
         normalized_page_text = normalize_text(page_text)
         
-        # Find which specific words matched
+        # Find which specific words matched (only whole words)
         matched_words = []
         for word in normalized_search_words:
-            if word in normalized_page_text:
+            # Create a pattern that matches the word with word boundaries
+            # This ensures we only match whole words, not parts of larger words
+            pattern = r'\b' + re.escape(word) + r'\b'
+            if re.search(pattern, normalized_page_text):
                 matched_words.append(word)
         
         # Check if any search word is in the page text
@@ -86,7 +91,6 @@ def search_words_in_pages(ocr_results: Dict[str, Any], search_words: Set[str]) -
         }
     
     return results
-
 
 def print_search_results(ocr_results: Dict[str, Any], search_results: Dict[int, Dict[str, Any]], 
                          search_words: Set[str]) -> None:
