@@ -365,7 +365,8 @@ def publish_notes():
         return send_from_directory(
             app.config['DOCX_FOLDER'],
             docx_filename,
-            as_attachment=True
+            as_attachment=True,
+            etag=str(datetime.datetime.now().timestamp())
         )
     
     except Exception as e:

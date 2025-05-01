@@ -31,9 +31,12 @@ $(document).ready(function() {
     });
     
     // Handle publish notes button
-    $('#publishNotesBtn').on('click', function() {
+    $('#publishNotesBtn').off('click').on('click', function() {
         publishNotes();
     });
+    
+    // Update publish notes button text to show DOCX
+    updatePublishButtonText();
     
     // Handle view mode switch
     $('#viewModeToggle input').on('change', function() {
@@ -515,53 +518,6 @@ function publishNotes() {
 function updatePublishButtonText() {
     $('#publishNotesBtn').html('<i class="bi bi-file-earmark-word"></i> Export Notes to DOCX');
 }
-
-// Document ready function
-$(document).ready(function() {
-    // Handle PDF upload form submission
-    $('#pdfUploadForm').on('submit', function(e) {
-        e.preventDefault();
-        uploadPDF();
-    });
-    
-    // Handle search form submission
-    $('#searchForm').on('submit', function(e) {
-        e.preventDefault();
-        searchAndFilterResults();
-    });
-    
-    // Handle download JSON button
-    $('#downloadJsonBtn').on('click', function() {
-        if (currentResultId && currentFilename) {
-            window.location.href = `/download-json/${currentResultId}/${currentFilename}`;
-        }
-    });
-    
-    // Handle publish notes button
-    $('#publishNotesBtn').on('click', function() {
-        publishNotes();
-    });
-    
-    // Update publish notes button text to show DOCX
-    updatePublishButtonText();
-    
-    // Handle view mode switch
-    $('#viewModeToggle input').on('change', function() {
-        toggleViewMode();
-    });
-    
-    // Validate page range inputs
-    $('#startPage, #endPage').on('change', function() {
-        validatePageRange();
-    });
-    
-    // Save notes when user types in the textarea
-    $('#pageNotes').on('input', function() {
-        if (currentPageNumber) {
-            saveNoteForCurrentPage();
-        }
-    });
-});
 
 // Check if text contains RTL characters (Hebrew, Arabic, etc.)
 function containsRTLCharacters(text) {
