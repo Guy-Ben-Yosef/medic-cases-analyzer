@@ -35,9 +35,6 @@ $(document).ready(function() {
         publishNotes();
     });
     
-    // Update publish notes button text to show DOCX
-    updatePublishButtonText();
-    
     // Handle view mode switch
     $('#viewModeToggle input').on('change', function() {
         toggleViewMode();
@@ -54,6 +51,12 @@ $(document).ready(function() {
             saveNoteForCurrentPage();
         }
     });
+
+    // Update publish notes button text to show DOCX
+    updatePublishButtonText();
+
+    // Initialize Socket.IO connection
+    initializeSocketIO();
 });
 
 // Save note for the current page
@@ -111,13 +114,23 @@ function validatePageRange() {
     }
 }
 
-// Upload and process PDF
 function uploadPDF() {
     const formData = new FormData($('#pdfUploadForm')[0]);
     
     // Display processing status
     $('#uploadButton').prop('disabled', true);
     $('#processingStatus').removeClass('d-none');
+    
+    // Initialize the progress bar
+    $('#progressBar').css('width', '0%')
+                     .attr('aria-valuenow', 0)
+                     .removeClass('bg-success bg-danger')
+                     .addClass('progress-bar-animated');
+    $('#progressPercentage').text('0%');
+    $('#currentPage').text('Page 0');
+    $('#totalPages').text('of ? pages');
+    $('#statusMessage').text('Initializing...');
+    $('#processingError').addClass('d-none');
     
     // Reset results
     resetResults();
@@ -134,17 +147,16 @@ function uploadPDF() {
                 // Store the result information
                 currentResultId = response.result_id;
                 currentFilename = response.original_filename;
-                currentResultPath = response.result_path;
                 
-                // Enable search form and download button
-                $('#searchForm').removeClass('d-none');
-                $('#noFileSelected').addClass('d-none');
-                $('#downloadSection').removeClass('d-none');
+                // Update the total pages count
+                $('#totalPages').text(`of ${response.total_pages} pages`);
                 
-                // Load the OCR results
-                getOCRResults();
+                // Note: We don't need to call getOCRResults() immediately here,
+                // as we'll wait for the WebSocket to notify us when processing is complete
             } else {
                 showError('Failed to process PDF: ' + (response.error || 'Unknown error'));
+                $('#processingStatus').addClass('d-none');
+                $('#uploadButton').prop('disabled', false);
             }
         },
         error: function(xhr) {
@@ -153,11 +165,8 @@ function uploadPDF() {
                 errorMsg += ': ' + xhr.responseJSON.error;
             }
             showError(errorMsg);
-        },
-        complete: function() {
-            // Reset UI state
-            $('#uploadButton').prop('disabled', false);
             $('#processingStatus').addClass('d-none');
+            $('#uploadButton').prop('disabled', false);
         }
     });
 }
@@ -176,8 +185,22 @@ function getOCRResults() {
             // Store the OCR results
             ocrResults = response;
             
+            // Store result path for future use
+            currentResultPath = `results/${currentResultId}_${currentFilename.replace(/\.[^/.]+$/, '')}_ocr_results.json`;
+            
+            // Enable search form and download button
+            $('#searchForm').removeClass('d-none');
+            $('#noFileSelected').addClass('d-none');
+            $('#downloadSection').removeClass('d-none');
+            
             // Apply default search and filter
             searchAndFilterResults();
+            
+            // Hide processing status after a short delay
+            setTimeout(function() {
+                $('#processingStatus').addClass('d-none');
+                $('#uploadButton').prop('disabled', false);
+            }, 500);
         },
         error: function(xhr) {
             let errorMsg = 'Failed to retrieve OCR results';
@@ -185,6 +208,7 @@ function getOCRResults() {
                 errorMsg += ': ' + xhr.responseJSON.error;
             }
             showError(errorMsg);
+            $('#uploadButton').prop('disabled', false);
         }
     });
 }
@@ -834,4 +858,148 @@ function navigateToPage(pageNumber) {
     
     // Find the page list item and trigger a click to navigate
     $(`#pageList .list-group-item[data-page="${pageNumber}"]`).trigger('click');
+}
+
+// Initialize Socket.IO connection
+function initializeSocketIO() {
+    console.log('Initializing Socket.IO connection...');
+    
+    // Connect with debug options
+    socket = io({
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 20000,
+        forceNew: true,
+        transports: ['websocket', 'polling'] // Try WebSocket first, then fall back to polling
+    });
+    
+    // Connection event handlers
+    socket.on('connect', function() {
+        console.log('Socket.IO connected successfully! Socket ID:', socket.id);
+    });
+    
+    // Listen for progress updates
+    socket.on('progress_update', function(data) {
+        console.log('Received progress update:', data);
+        updateProgressUI(data.data);
+    });
+    
+    // Connection error handling
+    socket.on('connect_error', function(error) {
+        console.error('Socket.IO connection error:', error);
+        // Show error in UI
+        $('#processingError').removeClass('d-none');
+        $('#errorMessage').text('Connection error: ' + error.message + '. Try refreshing the page.');
+    });
+    
+    socket.on('connect_timeout', function() {
+        console.error('Socket.IO connection timeout');
+    });
+    
+    socket.on('error', function(error) {
+        console.error('Socket.IO error:', error);
+    });
+    
+    socket.on('disconnect', function(reason) {
+        console.log('Socket.IO disconnected. Reason:', reason);
+    });
+    
+    socket.on('reconnect', function(attemptNumber) {
+        console.log('Socket.IO reconnected after', attemptNumber, 'attempts');
+    });
+    
+    socket.on('reconnect_attempt', function(attemptNumber) {
+        console.log('Socket.IO reconnection attempt:', attemptNumber);
+    });
+    
+    socket.on('reconnect_error', function(error) {
+        console.error('Socket.IO reconnection error:', error);
+    });
+    
+    socket.on('reconnect_failed', function() {
+        console.error('Socket.IO failed to reconnect');
+        // Show permanent error in UI
+        $('#processingError').removeClass('d-none');
+        $('#errorMessage').text('Failed to establish connection. Please refresh the page and try again.');
+    });
+}
+
+// Update progress UI based on server data
+function updateProgressUI(progressData) {
+    // Show processing status if hidden
+    $('#processingStatus').removeClass('d-none');
+    
+    // Update progress percentage
+    const percentage = progressData.percentage || 0;
+    $('#progressBar').css('width', percentage + '%').attr('aria-valuenow', percentage);
+    $('#progressPercentage').text(percentage + '%');
+    
+    // Update page count
+    const currentPage = progressData.current_page || 0;
+    const totalPages = progressData.total_pages || 0;
+    $('#currentPage').text(`Page ${currentPage}`);
+    $('#totalPages').text(`of ${totalPages} pages`);
+    
+    // Update status message
+    if (progressData.message) {
+        $('#statusMessage').text(progressData.message);
+    }
+    
+    // Handle errors
+    if (progressData.errors && progressData.errors.length > 0) {
+        $('#processingError').removeClass('d-none');
+        const latestError = progressData.errors[progressData.errors.length - 1];
+        $('#errorMessage').text(latestError);
+        
+        // Check for specific error messages related to Flask context
+        if (latestError.includes('application context') || 
+            latestError.includes('Working outside of application context')) {
+            // This is likely the Flask app context error, but processing might still be complete
+            console.warn('App context error detected, but checking if processing completed');
+            
+            // Check if processing is actually complete despite the error
+            if (percentage >= 98) {  // If we're close to completion
+                console.log('Processing nearly complete, attempting to load results');
+                
+                // Add a delay and try to get results
+                setTimeout(function() {
+                    getOCRResults();
+                }, 2000);
+            }
+        }
+    } else {
+        $('#processingError').addClass('d-none');
+    }
+    
+    // Handle completed status
+    if (progressData.status === 'completed') {
+        // Add success styles
+        $('#progressBar').removeClass('progress-bar-animated')
+                         .addClass('bg-success');
+        
+        // Delay hiding the progress for a moment so user can see it finished
+        setTimeout(function() {
+            // Get OCR results once processing is complete
+            getOCRResults();
+        }, 1500);
+    } else if (progressData.status === 'error') {
+        // Add error styles
+        $('#progressBar').removeClass('progress-bar-animated')
+                         .addClass('bg-danger');
+    }
+}
+
+function handleProcessingError(error) {
+    console.error('Processing error:', error);
+    
+    // Update the UI to show the error
+    $('#progressBar').removeClass('progress-bar-animated').addClass('bg-danger');
+    $('#processingError').removeClass('d-none');
+    $('#errorMessage').text(error);
+    
+    // Allow user to try again
+    setTimeout(function() {
+        $('#uploadButton').prop('disabled', false);
+    }, 2000);
 }

@@ -229,3 +229,70 @@
         display: none;
     }
 }
+
+#processingStatus .card {
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+#processingStatus .card-header {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+}
+
+#progressBar {
+    height: 20px;
+    transition: width 0.5s ease;
+}
+
+#progressPercentage {
+    font-weight: bold;
+}
+
+#currentPage, #totalPages {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+#statusMessage {
+    margin-top: 0.5rem;
+    font-weight: 500;
+    color: #0d6efd;
+}
+
+/* Styling for the error message */
+#processingError {
+    margin-top: 1rem;
+    margin-bottom: 0;
+    font-size: 0.9rem;
+}
+
+/* Animation for the progress bar */
+@keyframes progress-bar-stripes {
+    from { background-position: 1rem 0; }
+    to { background-position: 0 0; }
+}
+
+.progress-bar-animated {
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+/* Status colors */
+.progress-status-completed {
+    background-color: #198754 !important; /* Success green */
+}
+
+.progress-status-error {
+    background-color: #dc3545 !important; /* Error red */
+}
+
+/* Make the processing status card more prominent */
+#processingStatus {
+    transition: all 0.3s ease;
+}
+
+#processingStatus.active {
+    transform: scale(1.02);
+}

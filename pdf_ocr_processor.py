@@ -76,7 +76,7 @@ def save_to_json(results, output_path):
         logger.error(f"Error saving results to JSON: {str(e)}")
         return False
 
-def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_output_dir=None):
+def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_output_dir=None, progress_callback=None):
     """
     Process a PDF document with mixed Hebrew and English text and save results to JSON.
     Uses a single loop to process each page - check for highlights, convert to image, and perform OCR.
@@ -88,10 +88,14 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
                      Example: [1, 3, 5] processes only pages 1, 3, and 5
         dpi: DPI resolution for the image conversion
         image_output_dir: Directory to save page images
+        progress_callback: Optional callback function to report progress
+                          Function signature: progress_callback(current_page, total_pages, status, message=None, error=None)
     """
     # Validate input
     if not os.path.exists(pdf_path):
         logger.error(f"PDF file not found: {pdf_path}")
+        if progress_callback:
+            progress_callback(0, 0, 'error', message='PDF file not found', error=f"PDF file not found: {pdf_path}")
         return False
     
     # Set default output path if not provided
@@ -109,6 +113,9 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
     
     try:
         # Open the PDF with PyMuPDF for annotations and with PyPDF2 for total page count
+        if progress_callback:
+            progress_callback(0, 0, 'initializing', message='Opening PDF document...')
+            
         pdf_doc = fitz.open(pdf_path)
         pdf_reader = PdfReader(pdf_path)
         total_pages_in_document = len(pdf_reader.pages)
@@ -121,11 +128,20 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
             pages_to_process = list(range(1, total_pages_in_document + 1))
             logger.info(f"Processing all pages")
         
+        # Report initial status
+        if progress_callback:
+            progress_callback(0, len(pages_to_process), 'processing', message='Starting PDF processing...')
+        
         results = []
         
         # Single loop to process all selected pages
-        for page_num in tqdm(pages_to_process, desc="Processing pages"):
+        for i, page_num in enumerate(tqdm(pages_to_process, desc="Processing pages")):
             page_result = {"page_number": page_num}
+            
+            # Report progress
+            if progress_callback:
+                progress_message = f"Processing page {page_num} of {len(pages_to_process)}..."
+                progress_callback(i, len(pages_to_process), 'processing', message=progress_message)
             
             try:
                 # Step 1: Check for highlights/annotations on this page
@@ -174,6 +190,11 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
                 page_result["text"] = ""
                 page_result["error"] = str(e)
                 results.append(page_result)
+                
+                # Report error
+                if progress_callback:
+                    progress_callback(i, len(pages_to_process), 'error', 
+                                     error=f"Error processing page {page_num}: {str(e)}")
         
         # Close the PDF document
         pdf_doc.close()
@@ -188,6 +209,11 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
             "pages": results
         }
         
+        # Report completed status
+        if progress_callback:
+            progress_callback(len(pages_to_process), len(pages_to_process), 'completed', 
+                             message='PDF processing completed successfully.')
+        
         # Save results
         success = save_to_json(document_results, output_path)
         
@@ -195,6 +221,9 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
     
     except Exception as e:
         logger.error(f"Error processing PDF: {str(e)}")
+        # Report error
+        if progress_callback:
+            progress_callback(0, 0, 'error', error=f"Error processing PDF: {str(e)}")
         return False
 
 def main():

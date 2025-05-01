@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 # Import the functionality from the provided scripts
 from pdf_ocr_processor import process_pdf
 from ocr_results_searcher import search_words_in_pages, normalize_text
+from progress_tracker import init_socketio, start_progress_tracking, update_progress, complete_progress, get_progress
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -25,6 +26,12 @@ app.config['IMAGES_FOLDER'] = IMAGES_FOLDER
 app.config['NOTES_FOLDER'] = NOTES_FOLDER
 app.config['DOCX_FOLDER'] = DOCX_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+app.config['SERVER_NAME'] = '127.0.0.1:5000'  # Use your actual host:port
+app.config['APPLICATION_ROOT'] = '/'
+app.config['PREFERRED_URL_SCHEME'] = 'http'  # Use 'https' if you're using SSL
+
+# Initialize SocketIO
+socketio = init_socketio(app)
 
 # Ensure folders exist
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
@@ -85,47 +92,114 @@ def upload_pdf():
                 else:
                     page_numbers = [start_page]
             
-            # Process the PDF with image saving
-            success = process_pdf(
-                pdf_path, 
-                output_path, 
-                page_numbers, 
-                dpi=300, 
-                image_output_dir=document_images_folder
-            )
-            
-            # Delete the temporary PDF file after processing
-            os.unlink(pdf_path)
-            
-            if success:
-                # Update the JSON file with image URLs for web access
-                with open(output_path, 'r', encoding='utf-8') as f:
-                    results = json.load(f)
+            # Get total page count to initialize progress tracking
+            try:
+                from PyPDF2 import PdfReader
+                pdf_reader = PdfReader(pdf_path)
+                total_pages = len(pdf_reader.pages)
                 
-                # Add image URLs for each page
-                for page in results['pages']:
-                    if 'image_path' in page:
-                        page_num = page['page_number']
-                        # Replace absolute path with URL route
-                        page['image_url'] = url_for(
-                            'serve_page_image', 
-                            unique_id=unique_id, 
-                            page_number=page_num
-                        )
+                # Initialize progress tracking for this session
+                if page_numbers:
+                    total_pages_to_process = len(page_numbers)
+                else:
+                    total_pages_to_process = total_pages
                 
-                # Save updated results
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(results, f, ensure_ascii=False, indent=2)
+                start_progress_tracking(unique_id, total_pages_to_process)
                 
-                return jsonify({
+                # Return initial response immediately so client can connect for progress updates
+                initial_response = {
                     'success': True,
-                    'message': 'PDF processed successfully',
+                    'message': 'PDF processing started',
                     'result_id': unique_id,
                     'original_filename': filename,
-                    'result_path': output_path
-                })
-            else:
-                return jsonify({'error': 'Failed to process PDF'}), 500
+                    'total_pages': total_pages_to_process,
+                    'status': 'processing'
+                }
+                
+                # Create a copy of variables needed for the thread for thread safety
+                thread_pdf_path = pdf_path
+                thread_output_path = output_path
+                thread_page_numbers = page_numbers
+                thread_unique_id = unique_id
+                thread_document_images_folder = document_images_folder
+                
+                # Start processing in a separate thread with better context handling
+                import threading
+                
+                def process_pdf_thread(pdf_path, output_path, page_numbers, unique_id, document_images_folder):
+                    # Create a new app context for this thread
+                    with app.app_context():
+                        try:
+                            # Define progress callback
+                            def progress_callback(current_page, total_pages, status, message=None, error=None):
+                                update_progress(unique_id, current_page, status, message, error)
+                            
+                            # Process the PDF with progress updates
+                            success = process_pdf(
+                                pdf_path, 
+                                output_path, 
+                                page_numbers, 
+                                dpi=300, 
+                                image_output_dir=document_images_folder,
+                                progress_callback=progress_callback
+                            )
+                            
+                            # Mark processing as complete
+                            complete_progress(unique_id, success=success)
+                            
+                            # If successful, update the JSON file with image URLs
+                            if success:
+                                try:
+                                    with open(output_path, 'r', encoding='utf-8') as f:
+                                        results = json.load(f)
+                                    
+                                    # Add image URLs for each page - use direct URL construction instead of url_for
+                                    for page in results['pages']:
+                                        if 'image_path' in page:
+                                            page_num = page['page_number']
+                                            # Build the URL directly instead of using url_for
+                                            page['image_url'] = f'/page-images/{unique_id}/{page_num}'
+                                    
+                                    # Save updated results
+                                    with open(output_path, 'w', encoding='utf-8') as f:
+                                        json.dump(results, f, ensure_ascii=False, indent=2)
+                                except Exception as e:
+                                    print(f"Error updating JSON with image URLs: {str(e)}")
+                                    # Still mark as complete since OCR processing succeeded
+                                    update_progress(unique_id, total_pages_to_process, 'completed', 
+                                                  message="Processing complete, but error with image links.")
+                            
+                            # Delete the temporary PDF file after processing
+                            if os.path.exists(pdf_path):
+                                os.unlink(pdf_path)
+                                
+                        except Exception as e:
+                            # Update progress with error
+                            error_msg = str(e)
+                            print(f"Thread error: {error_msg}")
+                            update_progress(unique_id, 0, 'error', error=error_msg)
+                            
+                            # Ensure temporary file is cleaned up
+                            if os.path.exists(pdf_path):
+                                os.unlink(pdf_path)
+                
+                # Start processing thread with all needed parameters
+                processing_thread = threading.Thread(
+                    target=process_pdf_thread,
+                    args=(thread_pdf_path, thread_output_path, thread_page_numbers, 
+                          thread_unique_id, thread_document_images_folder)
+                )
+                processing_thread.daemon = True  # Make thread exit when main thread exits
+                processing_thread.start()
+                
+                return jsonify(initial_response)
+                
+            except Exception as e:
+                # Clean up temporary file in case of error
+                if os.path.exists(pdf_path):
+                    os.unlink(pdf_path)
+                return jsonify({'error': f'Failed to initialize PDF processing: {str(e)}'}), 500
+                
         except Exception as e:
             # Ensure temporary file is cleaned up in case of error
             if os.path.exists(pdf_path):
@@ -133,6 +207,15 @@ def upload_pdf():
             return jsonify({'error': f'Error processing PDF: {str(e)}'}), 500
     
     return jsonify({'error': 'Invalid file type. Please upload a PDF file.'}), 400
+
+@app.route('/progress/<session_id>')
+def get_processing_progress(session_id):
+    """Get current processing progress for a session."""
+    progress_data = get_progress(session_id)
+    if progress_data:
+        return jsonify(progress_data)
+    else:
+        return jsonify({'error': 'Session not found'}), 404
 
 @app.route('/page-images/<unique_id>/<int:page_number>')
 def serve_page_image(unique_id, page_number):
@@ -378,4 +461,4 @@ def publish_notes():
         return jsonify({'error': f'Error converting to DOCX: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
