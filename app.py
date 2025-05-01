@@ -197,6 +197,7 @@ def search_results():
         # Search for words in pages (returns dictionary with matched words info)
         search_results = {}
         if 'words' in filter_type or filter_type == 'both' or filter_type == 'all':
+            # Use the improved search_words_in_pages function
             search_results = search_words_in_pages(ocr_results, search_words)
         
         # Prepare all pages for filtering
