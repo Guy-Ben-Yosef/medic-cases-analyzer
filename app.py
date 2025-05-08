@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, url_for, make_response
 import os
+import sys
 import tempfile
 import uuid
 import json
@@ -460,5 +461,39 @@ def publish_notes():
         print(f"Detailed error: {error_details}")
         return jsonify({'error': f'Error converting to DOCX: {str(e)}'}), 500
 
+def display_ascii_art():
+    """
+    Display ASCII art from a text file when the application starts.
+    Attempts to resize the terminal for optimal display if on Unix-like system.
+    The ASCII art will be displayed in the terminal.
+    """
+    # Try to set terminal size for better viewing (Unix/Linux/macOS only)
+    if sys.platform != "win32":
+        try:
+            # Set terminal to at least 100 columns wide by 35 rows tall
+            # The size command is specific to Unix-like systems
+            os.system('printf "\033[8;35;100t"')
+        except Exception as e:
+            print(f"Could not resize terminal: {str(e)}")
+    
+    ascii_art_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), r'templates/ascii_art.txt')
+    
+    if os.path.exists(ascii_art_path):
+        try:
+            with open(ascii_art_path, 'r', encoding='utf-8') as art_file:
+                ascii_art = art_file.read()
+                # Add a terminal clear command before displaying
+                if sys.platform != "win32":
+                    os.system('clear')
+                else:
+                    os.system('cls')
+                print("\n" + ascii_art + "\n")
+                print("=" * 80)  # Add a separator line after the art
+        except Exception as e:
+            print(f"Error displaying ASCII art: {str(e)}")
+    else:
+        print("ASCII art file not found. Create 'ascii_art.txt' in the application root directory.")
+
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    display_ascii_art()
+    socketio.run(app, debug=True, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)
