@@ -8,6 +8,7 @@ let ocrResults = null;
 let filteredResults = null;
 let currentPageNumber = null;
 let pageNotes = {}; // Object to store notes for each page
+let pageMetadata = {}; // Object to store metadata (hospital, doctor type, date) for each page
 
 // Document ready function
 $(document).ready(function() {
@@ -50,6 +51,29 @@ $(document).ready(function() {
         if (currentPageNumber) {
             saveNoteForCurrentPage();
         }
+    });
+
+    $('#isHospital').on('change', function() {
+        if (currentPageNumber) {
+            saveMetadataForCurrentPage();
+        }
+    });
+    
+    $('#doctorType').on('change', function() {
+        if (currentPageNumber) {
+            saveMetadataForCurrentPage();
+        }
+    });
+    
+    $('#caseDate').on('input', function() {
+        if (currentPageNumber) {
+            saveMetadataForCurrentPage();
+        }
+    });
+    
+    // Date input validation and formatting
+    $('#caseDate').on('blur', function() {
+        validateAndFormatDate($(this));
     });
 
     // Update publish notes button text to show DOCX
@@ -490,6 +514,12 @@ function displayPageContent(pageNumber) {
         // Load notes for this page if they exist
         $('#pageNotes').val(pageNotes[pageNumber] || '');
         $('#pageNotes').prop('disabled', false);
+
+        // Load metadata for this page if it exists
+        const metadata = pageMetadata[pageNumber] || {};
+        $('#isHospital').prop('checked', metadata.isHospital || false);
+        $('#doctorType').val(metadata.doctorType || '');
+        $('#caseDate').val(metadata.caseDate || '');
         
         // Update navigation buttons after changing the page
         updateNavigationButtonStates();
@@ -514,9 +544,10 @@ function publishNotes() {
         return;
     }
     
-    // Prepare request data
+    // Prepare request data with notes and metadata
     const requestData = {
         notes: pageNotes,
+        metadata: pageMetadata,
         filename: currentFilename
     };
     
@@ -606,6 +637,7 @@ function resetResults() {
     filteredResults = null;
     currentPageNumber = null;
     pageNotes = {}; // Clear notes when loading a new document
+    pageMetadata = {}; // Clear metadata when loading a new document
     allPageNumbers = []; // Reset navigation arrays
     matchingPageNumbers = [];
     
@@ -853,8 +885,9 @@ function navigateToNextMatchingPage() {
 
 // Navigate to a specific page number
 function navigateToPage(pageNumber) {
-    // Save the current page notes before navigating
+    // Save the current page notes and metadata before navigating
     saveNoteForCurrentPage();
+    saveMetadataForCurrentPage();
     
     // Find the page list item and trigger a click to navigate
     $(`#pageList .list-group-item[data-page="${pageNumber}"]`).trigger('click');
@@ -1002,4 +1035,69 @@ function handleProcessingError(error) {
     setTimeout(function() {
         $('#uploadButton').prop('disabled', false);
     }, 2000);
+}
+
+function validateAndFormatDate(dateInput) {
+    const value = dateInput.val().trim();
+    
+    // If empty, don't validate
+    if (!value) {
+        return;
+    }
+    
+    // Regular expression for DD/MM/YYYY format
+    const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    const match = value.match(dateRegex);
+    
+    if (match) {
+        let day = parseInt(match[1], 10);
+        let month = parseInt(match[2], 10);
+        const year = parseInt(match[3], 10);
+        
+        // Check if date is valid
+        if (month >= 1 && month <= 12 && day >= 1) {
+            // Calculate the last day of the month
+            const lastDayOfMonth = new Date(year, month, 0).getDate();
+            
+            if (day <= lastDayOfMonth) {
+                // Format the date with leading zeros
+                const formattedDay = day.toString().padStart(2, '0');
+                const formattedMonth = month.toString().padStart(2, '0');
+                
+                // Set the formatted value
+                dateInput.val(`${formattedDay}/${formattedMonth}/${year}`);
+                dateInput.removeClass('is-invalid');
+                return;
+            }
+        }
+    }
+    
+    // Invalid date
+    dateInput.addClass('is-invalid');
+}
+
+// Update the saveNoteForCurrentPage function to also save metadata
+// Find this function:
+function saveNoteForCurrentPage() {
+    if (currentPageNumber) {
+        const noteText = $('#pageNotes').val();
+        pageNotes[currentPageNumber] = noteText;
+        
+        // Optional: Add visual indicator for pages with notes
+        updatePageListItemWithNoteIndicator(currentPageNumber);
+    }
+}
+
+function saveMetadataForCurrentPage() {
+    if (currentPageNumber) {
+        // Initialize metadata object for this page if it doesn't exist
+        if (!pageMetadata[currentPageNumber]) {
+            pageMetadata[currentPageNumber] = {};
+        }
+        
+        // Save current values of form fields
+        pageMetadata[currentPageNumber].isHospital = $('#isHospital').prop('checked');
+        pageMetadata[currentPageNumber].doctorType = $('#doctorType').val();
+        pageMetadata[currentPageNumber].caseDate = $('#caseDate').val();
+    }
 }

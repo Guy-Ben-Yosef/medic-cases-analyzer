@@ -349,7 +349,7 @@ def download_json(result_id, filename):
 
 @app.route('/publish-notes', methods=['POST'])
 def publish_notes():
-    """Generate and save a docx file with notes for all pages."""
+    """Generate and save a docx file with notes and metadata for all pages."""
     data = request.get_json()
     
     if not data or 'notes' not in data or 'filename' not in data:
@@ -358,21 +358,51 @@ def publish_notes():
     filename = secure_filename(data['filename'])
     base_filename = os.path.splitext(filename)[0]
     notes_data = data['notes']
+    metadata_data = data.get('metadata', {})
     
     # Create notes content in markdown format
     markdown_content = f"# Notes for {filename}\n\n"
-    markdown_content += f"**Date:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    markdown_content += f"**Generated on:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     markdown_content += f"---\n\n"
     
-    # Sort page numbers numerically
-    page_numbers = sorted([int(page) for page in notes_data.keys() if notes_data[page].strip()])
+    # Sort page numbers numerically - include pages with notes or metadata
+    page_numbers_with_notes = [int(page) for page in notes_data.keys() if notes_data[page].strip()]
+    page_numbers_with_metadata = [int(page) for page in metadata_data.keys()]
+    all_page_numbers = sorted(set(page_numbers_with_notes + page_numbers_with_metadata))
     
-    # Add each page's notes to the content
-    for page_num in page_numbers:
+    # Add each page's notes and metadata to the content
+    for page_num in all_page_numbers:
         page_note = notes_data.get(str(page_num), '').strip()
-        if page_note:
+        page_metadata = metadata_data.get(str(page_num), {})
+        
+        # Only include pages that have either notes or metadata
+        if page_note or page_metadata:
             markdown_content += f"## עמוד {page_num}\n\n"
-            markdown_content += f"{page_note}\n\n"
+            
+            # Add metadata if available
+            if page_metadata:
+                markdown_content += "### Metadata\n\n"
+                
+                # Hospital status
+                is_hospital = page_metadata.get('isHospital', False)
+                markdown_content += f"**On hospital:** {'Yes' if is_hospital else 'No'}\n\n"
+                
+                # Doctor type
+                doctor_type = page_metadata.get('doctorType', '')
+                if doctor_type:
+                    markdown_content += f"**Doctor type:** {doctor_type}\n\n"
+                
+                # Case date
+                case_date = page_metadata.get('caseDate', '')
+                if case_date:
+                    markdown_content += f"**Date:** {case_date}\n\n"
+            
+            # Add notes
+            if page_note:
+                markdown_content += "### Notes\n\n"
+                markdown_content += f"{page_note}\n\n"
+            
+            markdown_content += "---\n\n"
     
     try:
         # Generate a unique filename with timestamp

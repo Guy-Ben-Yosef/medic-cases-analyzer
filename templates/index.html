@@ -177,13 +177,44 @@
                                 </div>
                             </div>
 
-                            <!-- Notes Section -->
+                            <!-- Notes Section with Additional Fields -->
                             <div class="card-body pb-0">
+                                <div class="row mb-3">
+                                    <!-- Hospital Checkbox -->
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="isHospital">
+                                            <label class="form-check-label" for="isHospital">
+                                                On hospital?
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Doctor Type Dropdown -->
+                                    <div class="col-md-4 mb-2">
+                                        <label for="doctorType" class="form-label">Doctor type:</label>
+                                        <select class="form-select" id="doctorType">
+                                            <option value="" selected>Select doctor type</option>
+                                            <option value="רופא משפחה">רופא משפחה</option>
+                                            <option value="רופא במיון">רופא במיון</option>
+                                            <option value="רופא מומחה">רופא מומחה</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Date Input -->
+                                    <div class="col-md-4 mb-2">
+                                        <label for="caseDate" class="form-label">Date:</label>
+                                        <input type="text" class="form-control" id="caseDate" placeholder="DD/MM/YYYY">
+                                    </div>
+                                </div>
+                                
+                                <!-- Notes Textarea (existing) -->
                                 <div class="mb-3">
                                     <label for="pageNotes" class="form-label">Notes for this page:</label>
                                     <textarea class="form-control rtl-text" id="pageNotes" rows="2" placeholder="הוסף את ההערות שלך לעמוד זה כאן..." dir="rtl"></textarea>
                                 </div>
                             </div>
+
                             <div class="card-body">
                                 <!-- View mode toggle -->
                                 <div class="btn-group btn-group-sm mb-3" id="viewModeToggle" role="group" aria-label="View mode">
