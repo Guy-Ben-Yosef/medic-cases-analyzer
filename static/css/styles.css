@@ -347,3 +347,87 @@
         margin-bottom: 1rem !important;
     }
 }
+
+/* Note Set Styling */
+.note-set .card {
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.3s ease;
+}
+
+.note-set .card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.note-set .card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    padding: 0.75rem 1rem;
+}
+
+.note-set .card-body {
+    padding: 1rem;
+}
+
+/* Animation for adding new note sets */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.note-set.real-note-set {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Add button styling */
+#addNoteSetBtn {
+    transition: all 0.2s ease;
+}
+
+#addNoteSetBtn:hover {
+    transform: scale(1.05);
+}
+
+#addNoteSetBtn i {
+    margin-right: 5px;
+}
+
+/* Remove button styling */
+.remove-note-set {
+    transition: all 0.2s ease;
+}
+
+.remove-note-set:hover {
+    transform: scale(1.05);
+}
+
+/* Badge styling for note count */
+.badge-note {
+    font-size: 0.7rem;
+    padding: 0.35em 0.65em;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.badge-note i {
+    font-size: 0.7em;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .note-set .card-header {
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .note-set .card-body {
+        padding: 0.75rem;
+    }
+    
+    /* Make the form layout more compact on mobile */
+    .note-set .row > div {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+}

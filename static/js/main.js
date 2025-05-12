@@ -9,6 +9,7 @@ let filteredResults = null;
 let currentPageNumber = null;
 let pageNotes = {}; // Object to store notes for each page
 let pageMetadata = {}; // Object to store metadata (hospital, doctor type, date) for each page
+let pageNoteSets = {}; // Object to store all note sets for each page
 
 // Document ready function
 $(document).ready(function() {
@@ -76,11 +77,42 @@ $(document).ready(function() {
         validateAndFormatDate($(this));
     });
 
+    // Add note set button click handler
+    $('#addNoteSetBtn').on('click', function() {
+        addNewNoteSet();
+    });
+    
+    // Event delegation for dynamically added note set elements
+    $('#dynamicNoteSets').on('change', '.isHospital, .doctorType', function() {
+        if (currentPageNumber) {
+            saveNoteSetDataForCurrentPage();
+        }
+    });
+    
+    $('#dynamicNoteSets').on('input', '.caseDate, .citationNotes', function() {
+        if (currentPageNumber) {
+            saveNoteSetDataForCurrentPage();
+        }
+    });
+    
+    // Event delegation for date validation
+    $('#dynamicNoteSets').on('blur', '.caseDate', function() {
+        validateAndFormatDate($(this));
+    });
+    
+    // Event delegation for remove note set button
+    $('#dynamicNoteSets').on('click', '.remove-note-set', function() {
+        removeNoteSet($(this).closest('.note-set'));
+    });
+
     // Update publish notes button text to show DOCX
     updatePublishButtonText();
 
     // Initialize Socket.IO connection
     initializeSocketIO();
+
+    // Initialize with at least one note set when first loading a page
+    initializeNoteSets();
 });
 
 // Save note for the current page
@@ -96,7 +128,9 @@ function saveNoteForCurrentPage() {
 
 // Update page list item to show note indicator
 function updatePageListItemWithNoteIndicator(pageNumber) {
-    const hasNote = pageNotes[pageNumber] && pageNotes[pageNumber].trim() !== '';
+    // Check if there are any note sets with data
+    const hasNoteSets = pageNoteSets[pageNumber] && pageNoteSets[pageNumber].length > 0;
+    const noteSetCount = hasNoteSets ? pageNoteSets[pageNumber].length : 0;
     
     // Find the page list item
     const pageItem = $(`#pageList .list-group-item[data-page="${pageNumber}"]`);
@@ -104,11 +138,11 @@ function updatePageListItemWithNoteIndicator(pageNumber) {
     // Remove existing note badge
     pageItem.find('.badge-note').remove();
     
-    // Add or remove 'has-notes' class based on whether there's a note
-    if (hasNote) {
+    // Add or remove 'has-notes' class based on whether there are note sets
+    if (hasNoteSets) {
         pageItem.addClass('has-notes');
         pageItem.find('.badge-container').append(
-            '<span class="badge bg-info text-dark badge-note ms-1"><i class="bi bi-pencil-fill"></i></span>'
+            `<span class="badge bg-info text-dark badge-note ms-1"><i class="bi bi-pencil-fill"></i> ${noteSetCount}</span>`
         );
     } else {
         pageItem.removeClass('has-notes');
@@ -511,15 +545,19 @@ function displayPageContent(pageNumber) {
             }
         }
         
-        // Load notes for this page if they exist
-        $('#pageNotes').val(pageNotes[pageNumber] || '');
-        $('#pageNotes').prop('disabled', false);
+        // Load note sets for this page
+        $('#dynamicNoteSets').empty();
+        const noteSets = pageNoteSets[pageNumber] || [];
 
-        // Load metadata for this page if it exists
-        const metadata = pageMetadata[pageNumber] || {};
-        $('#isHospital').prop('checked', metadata.isHospital || false);
-        $('#doctorType').val(metadata.doctorType || '');
-        $('#caseDate').val(metadata.caseDate || '');
+        if (noteSets.length > 0) {
+            // Create note sets for each saved data
+            noteSets.forEach(noteSetData => {
+                addNewNoteSet(noteSetData);
+            });
+        } else {
+            // Add one empty note set if none exist
+            addNewNoteSet();
+        }
         
         // Update navigation buttons after changing the page
         updateNavigationButtonStates();
@@ -532,22 +570,30 @@ function publishNotes() {
         showError('No document loaded to publish notes from.');
         return;
     }
-    
+
     // Make sure to save the current page's notes
     saveNoteForCurrentPage();
     
-    // Check if there are any notes
-    const hasNotes = Object.values(pageNotes).some(note => note && note.trim() !== '');
-    
-    if (!hasNotes) {
-        alert('No notes found. Please add notes to at least one page before publishing.');
+    // Check if there are any note sets with data
+    const hasNoteSets = Object.keys(pageNoteSets).some(pageNum => {
+        const noteSets = pageNoteSets[pageNum];
+        return noteSets && noteSets.length > 0 && noteSets.some(noteSet => {
+            // Check if any of the note set fields have data
+            return noteSet.isHospital || 
+                (noteSet.doctorType && noteSet.doctorType.trim() !== '') || 
+                (noteSet.caseDate && noteSet.caseDate.trim() !== '') || 
+                (noteSet.citationNotes && noteSet.citationNotes.trim() !== '');
+        });
+    });
+
+    if (!hasNoteSets) {
+        alert('No note sets found. Please add data to at least one note set before publishing.');
         return;
     }
     
     // Prepare request data with notes and metadata
     const requestData = {
-        notes: pageNotes,
-        metadata: pageMetadata,
+        noteSets: pageNoteSets,
         filename: currentFilename
     };
     
@@ -636,8 +682,7 @@ function resetResults() {
     ocrResults = null;
     filteredResults = null;
     currentPageNumber = null;
-    pageNotes = {}; // Clear notes when loading a new document
-    pageMetadata = {}; // Clear metadata when loading a new document
+    pageNoteSets = {}; // Clear note sets when loading a new document
     allPageNumbers = []; // Reset navigation arrays
     matchingPageNumbers = [];
     
@@ -885,9 +930,8 @@ function navigateToNextMatchingPage() {
 
 // Navigate to a specific page number
 function navigateToPage(pageNumber) {
-    // Save the current page notes and metadata before navigating
-    saveNoteForCurrentPage();
-    saveMetadataForCurrentPage();
+    // Save note sets before navigating
+    saveNoteSetDataForCurrentPage();
     
     // Find the page list item and trigger a click to navigate
     $(`#pageList .list-group-item[data-page="${pageNumber}"]`).trigger('click');
@@ -1042,6 +1086,7 @@ function validateAndFormatDate(dateInput) {
     
     // If empty, don't validate
     if (!value) {
+        dateInput.removeClass('is-invalid');
         return;
     }
     
@@ -1099,5 +1144,109 @@ function saveMetadataForCurrentPage() {
         pageMetadata[currentPageNumber].isHospital = $('#isHospital').prop('checked');
         pageMetadata[currentPageNumber].doctorType = $('#doctorType').val();
         pageMetadata[currentPageNumber].caseDate = $('#caseDate').val();
+    }
+}
+
+function initializeNoteSets() {
+    // Clear existing note sets
+    $('#dynamicNoteSets').empty();
+    
+    // If there are no note sets yet, add the first one
+    if (currentPageNumber && (!pageNoteSets[currentPageNumber] || pageNoteSets[currentPageNumber].length === 0)) {
+        addNewNoteSet();
+    }
+}
+
+// Function to add a new note set
+function addNewNoteSet(data = null) {
+    // Clone the template
+    const template = $('#noteSet-template').clone();
+    template.attr('id', '');
+    template.addClass('real-note-set');
+    template.show();
+    
+    // Determine the new index
+    const noteSetCount = $('#dynamicNoteSets .note-set').length + 1;
+    template.find('.note-set-number').text(noteSetCount);
+    
+    // Set unique IDs for all form elements based on the index
+    template.find('.isHospital').attr('id', `isHospital-${noteSetCount}`);
+    template.find('.isHospital').next('label').attr('for', `isHospital-${noteSetCount}`);
+    template.find('.doctorType').attr('id', `doctorType-${noteSetCount}`);
+    template.find('.doctorType').prev('label').attr('for', `doctorType-${noteSetCount}`);
+    template.find('.caseDate').attr('id', `caseDate-${noteSetCount}`);
+    template.find('.caseDate').prev('label').attr('for', `caseDate-${noteSetCount}`);
+    template.find('.citationNotes').attr('id', `citationNotes-${noteSetCount}`);
+    template.find('.citationNotes').prev('label').attr('for', `citationNotes-${noteSetCount}`);
+    
+    // If we have data, populate the form elements
+    if (data) {
+        template.find('.isHospital').prop('checked', data.isHospital || false);
+        template.find('.doctorType').val(data.doctorType || '');
+        template.find('.caseDate').val(data.caseDate || '');
+        template.find('.citationNotes').val(data.citationNotes || '');
+    }
+    
+    // Add to the container
+    $('#dynamicNoteSets').append(template);
+    
+    // Save the current state
+    if (currentPageNumber) {
+        saveNoteSetDataForCurrentPage();
+    }
+    
+    // Update the page list indicator
+    updatePageListItemWithNoteIndicator(currentPageNumber);
+    
+    return template;
+}
+
+// Function to remove a note set
+function removeNoteSet(noteSetElement) {
+    // Ask for confirmation
+    if (confirm('Are you sure you want to remove this note set?')) {
+        // Remove the element
+        noteSetElement.remove();
+        
+        // Renumber the remaining note sets
+        $('#dynamicNoteSets .note-set').each(function(index) {
+            $(this).find('.note-set-number').text(index + 1);
+        });
+        
+        // Save the current state
+        if (currentPageNumber) {
+            saveNoteSetDataForCurrentPage();
+        }
+        
+        // Update the page list indicator
+        updatePageListItemWithNoteIndicator(currentPageNumber);
+    }
+}
+
+// Function to save all note sets for the current page
+function saveNoteSetDataForCurrentPage() {
+    if (currentPageNumber) {
+        const noteSets = [];
+        
+        // Collect data from all note sets
+        $('#dynamicNoteSets .note-set').each(function() {
+            const noteSet = {
+                isHospital: $(this).find('.isHospital').prop('checked'),
+                doctorType: $(this).find('.doctorType').val(),
+                caseDate: $(this).find('.caseDate').val(),
+                citationNotes: $(this).find('.citationNotes').val()
+            };
+            
+            // Only add if it has some data
+            if (noteSet.isHospital || noteSet.doctorType || noteSet.caseDate || noteSet.citationNotes) {
+                noteSets.push(noteSet);
+            }
+        });
+        
+        // Store the collected data
+        pageNoteSets[currentPageNumber] = noteSets;
+        
+        // Update the page list indicator
+        updatePageListItemWithNoteIndicator(currentPageNumber);
     }
 }

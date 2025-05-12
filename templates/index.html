@@ -177,41 +177,67 @@
                                 </div>
                             </div>
 
-                            <!-- Notes Section with Additional Fields -->
+                            <!-- Notes Section with Multiple Note Sets -->
                             <div class="card-body pb-0">
-                                <div class="row mb-3">
-                                    <!-- Hospital Checkbox -->
-                                    <div class="col-md-4 mb-2">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="isHospital">
-                                            <label class="form-check-label" for="isHospital">
-                                                On hospital?
-                                            </label>
+                                <!-- Container for multiple note sets -->
+                                <div id="noteSetsContainer">
+                                    <!-- Template for a note set - this will be duplicated for each new set -->
+                                    <div class="note-set mb-3" id="noteSet-template" style="display: none;">
+                                        <div class="card">
+                                            <div class="card-header d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0">Note Set <span class="note-set-number"></span></h6>
+                                                <button type="button" class="btn btn-sm btn-danger remove-note-set">
+                                                    <i class="bi bi-x-lg"></i> Remove
+                                                </button>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row mb-3">
+                                                    <!-- Hospital Checkbox -->
+                                                    <div class="col-md-4 mb-2">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input isHospital" type="checkbox">
+                                                            <label class="form-check-label">
+                                                                On hospital?
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Doctor Type Dropdown -->
+                                                    <div class="col-md-4 mb-2">
+                                                        <label class="form-label">Doctor type:</label>
+                                                        <select class="form-select doctorType">
+                                                            <option value="" selected>Select doctor type</option>
+                                                            <option value="רופא משפחה">רופא משפחה</option>
+                                                            <option value="רופא במיון">רופא במיון</option>
+                                                            <option value="רופא מומחה">רופא מומחה</option>
+                                                        </select>
+                                                    </div>
+                                                    
+                                                    <!-- Date Input -->
+                                                    <div class="col-md-4 mb-2">
+                                                        <label class="form-label">Date:</label>
+                                                        <input type="text" class="form-control caseDate" placeholder="DD/MM/YYYY">
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Citation/Notes Textarea -->
+                                                <div class="mb-2">
+                                                    <label class="form-label">Citation/Notes:</label>
+                                                    <textarea class="form-control rtl-text citationNotes" rows="2" placeholder="הוסף את ההערות שלך כאן..." dir="rtl"></textarea>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     
-                                    <!-- Doctor Type Dropdown -->
-                                    <div class="col-md-4 mb-2">
-                                        <label for="doctorType" class="form-label">Doctor type:</label>
-                                        <select class="form-select" id="doctorType">
-                                            <option value="" selected>Select doctor type</option>
-                                            <option value="רופא משפחה">רופא משפחה</option>
-                                            <option value="רופא במיון">רופא במיון</option>
-                                            <option value="רופא מומחה">רופא מומחה</option>
-                                        </select>
-                                    </div>
+                                    <!-- Dynamic note sets will be added here -->
+                                    <div id="dynamicNoteSets"></div>
                                     
-                                    <!-- Date Input -->
-                                    <div class="col-md-4 mb-2">
-                                        <label for="caseDate" class="form-label">Date:</label>
-                                        <input type="text" class="form-control" id="caseDate" placeholder="DD/MM/YYYY">
+                                    <!-- Button to add a new note set -->
+                                    <div class="text-center mb-3">
+                                        <button type="button" class="btn btn-primary" id="addNoteSetBtn">
+                                            <i class="bi bi-plus-lg"></i> Add New Note Set
+                                        </button>
                                     </div>
-                                </div>
-                                
-                                <!-- Notes Textarea (existing) -->
-                                <div class="mb-3">
-                                    <label for="pageNotes" class="form-label">Notes for this page:</label>
-                                    <textarea class="form-control rtl-text" id="pageNotes" rows="2" placeholder="הוסף את ההערות שלך לעמוד זה כאן..." dir="rtl"></textarea>
                                 </div>
                             </div>
 

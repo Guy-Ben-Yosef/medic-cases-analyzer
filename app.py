@@ -349,60 +349,73 @@ def download_json(result_id, filename):
 
 @app.route('/publish-notes', methods=['POST'])
 def publish_notes():
-    """Generate and save a docx file with notes and metadata for all pages."""
+    """Generate and save a docx file with multiple note sets for each page."""
     data = request.get_json()
     
-    if not data or 'notes' not in data or 'filename' not in data:
+    if not data or 'noteSets' not in data or 'filename' not in data:
         return jsonify({'error': 'Missing required parameters'}), 400
     
     filename = secure_filename(data['filename'])
     base_filename = os.path.splitext(filename)[0]
-    notes_data = data['notes']
-    metadata_data = data.get('metadata', {})
+    note_sets_data = data['noteSets']
     
     # Create notes content in markdown format
-    markdown_content = f"# Notes for {filename}\n\n"
+    markdown_content = f"# Medical Case Notes for {filename}\n\n"
     markdown_content += f"**Generated on:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     markdown_content += f"---\n\n"
     
-    # Sort page numbers numerically - include pages with notes or metadata
-    page_numbers_with_notes = [int(page) for page in notes_data.keys() if notes_data[page].strip()]
-    page_numbers_with_metadata = [int(page) for page in metadata_data.keys()]
-    all_page_numbers = sorted(set(page_numbers_with_notes + page_numbers_with_metadata))
+    # Sort page numbers numerically - get pages with note sets
+    pages_with_notes = sorted([int(page) for page in note_sets_data.keys() if note_sets_data[page]])
     
-    # Add each page's notes and metadata to the content
-    for page_num in all_page_numbers:
-        page_note = notes_data.get(str(page_num), '').strip()
-        page_metadata = metadata_data.get(str(page_num), {})
+    # Add each page's note sets to the content
+    for page_num in pages_with_notes:
+        page_note_sets = note_sets_data.get(str(page_num), [])
         
-        # Only include pages that have either notes or metadata
-        if page_note or page_metadata:
-            markdown_content += f"## עמוד {page_num}\n\n"
+        # Skip pages without note sets
+        if not page_note_sets:
+            continue
             
-            # Add metadata if available
-            if page_metadata:
-                markdown_content += "### Metadata\n\n"
-                
-                # Hospital status
-                is_hospital = page_metadata.get('isHospital', False)
-                markdown_content += f"**On hospital:** {'Yes' if is_hospital else 'No'}\n\n"
-                
-                # Doctor type
-                doctor_type = page_metadata.get('doctorType', '')
-                if doctor_type:
-                    markdown_content += f"**Doctor type:** {doctor_type}\n\n"
-                
-                # Case date
-                case_date = page_metadata.get('caseDate', '')
-                if case_date:
-                    markdown_content += f"**Date:** {case_date}\n\n"
+        markdown_content += f"## Page {page_num}\n\n"
+        
+        # Process each note set for this page
+        for i, note_set in enumerate(page_note_sets):
+            markdown_content += f"### Note Set {i+1}\n\n"
             
-            # Add notes
-            if page_note:
-                markdown_content += "### Notes\n\n"
-                markdown_content += f"{page_note}\n\n"
+            # Hospital status
+            is_hospital = note_set.get('isHospital', False)
+            markdown_content += f"**On hospital:** {'Yes' if is_hospital else 'No'}\n\n"
             
-            markdown_content += "---\n\n"
+            # Doctor type
+            doctor_type = note_set.get('doctorType', '')
+            if doctor_type:
+                markdown_content += f"**Doctor type:** {doctor_type}\n\n"
+            else:
+                markdown_content += f"**Doctor type:** Not specified\n\n"
+            
+            # Case date
+            case_date = note_set.get('caseDate', '')
+            if case_date:
+                markdown_content += f"**Date:** {case_date}\n\n"
+            else:
+                markdown_content += f"**Date:** Not specified\n\n"
+            
+            # Citation/Notes
+            citation_notes = note_set.get('citationNotes', '').strip()
+            if citation_notes:
+                markdown_content += f"**Citation/Notes:**\n\n{citation_notes}\n\n"
+            else:
+                markdown_content += f"**Citation/Notes:** None\n\n"
+            
+            # Add separator between note sets
+            if i < len(page_note_sets) - 1:
+                markdown_content += "---\n\n"
+        
+        # Add separator between pages
+        markdown_content += "---\n\n"
+    
+    # If no pages have note sets, add a message
+    if not pages_with_notes:
+        markdown_content += "No note sets found for any page.\n\n"
     
     try:
         # Generate a unique filename with timestamp
