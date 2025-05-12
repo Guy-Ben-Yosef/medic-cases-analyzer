@@ -572,22 +572,22 @@ function publishNotes() {
     }
 
     // Make sure to save the current page's notes
-    saveNoteForCurrentPage();
+    saveNoteSetDataForCurrentPage();
     
     // Check if there are any note sets with data
-    const hasNoteSets = Object.keys(pageNoteSets).some(pageNum => {
-        const noteSets = pageNoteSets[pageNum];
-        return noteSets && noteSets.length > 0 && noteSets.some(noteSet => {
-            // Check if any of the note set fields have data
-            return noteSet.isHospital || 
-                (noteSet.doctorType && noteSet.doctorType.trim() !== '') || 
-                (noteSet.caseDate && noteSet.caseDate.trim() !== '') || 
-                (noteSet.citationNotes && noteSet.citationNotes.trim() !== '');
-        });
-    });
+    const hasNotes = Object.keys(pageNoteSets).some(pageNum => 
+        pageNoteSets[pageNum] && 
+        pageNoteSets[pageNum].length > 0 && 
+        pageNoteSets[pageNum].some(noteSet => 
+            noteSet.isHospital || 
+            noteSet.doctorType || 
+            (noteSet.caseDate && noteSet.caseDate.trim() !== '') || 
+            (noteSet.citationNotes && noteSet.citationNotes.trim() !== '')
+        )
+    );
 
-    if (!hasNoteSets) {
-        alert('No note sets found. Please add data to at least one note set before publishing.');
+    if (!hasNotes) {
+        alert('No notes found. Please add notes to at least one page before publishing.');
         return;
     }
     
