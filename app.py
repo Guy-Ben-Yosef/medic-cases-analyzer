@@ -370,7 +370,7 @@ def publish_notes():
         page_note_sets = note_sets_data.get(str(page_num), [])
         for note_set in page_note_sets:
             # switch cases between family doctor and orthopedic doctor
-            if note_set.get('doctorType') == 'רופאה משפחה':
+            if note_set.get('doctorType') == 'רופא משפחה':
                 family_doctor_dates.append(note_set.get('caseDate', ''))
             elif note_set.get('doctorType') == 'אורתופד':
                 if note_set.get('isHospital', True):
