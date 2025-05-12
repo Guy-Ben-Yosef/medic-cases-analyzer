@@ -360,62 +360,44 @@ def publish_notes():
     note_sets_data = data['noteSets']
     
     # Create notes content in markdown format
-    markdown_content = f"# Medical Case Notes for {filename}\n\n"
-    markdown_content += f"**Generated on:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    markdown_content += f"---\n\n"
-    
-    # Sort page numbers numerically - get pages with note sets
-    pages_with_notes = sorted([int(page) for page in note_sets_data.keys() if note_sets_data[page]])
-    
-    # Add each page's note sets to the content
-    for page_num in pages_with_notes:
+    markdown_content = f"1. המסמכים הרפואיים שעמדו בפני בעת עריכת חוות דעתי:\n"
+    markdown_content += "* תיק קופת חולים (סיכומי ביקור, אישורים, הפניות, מרשמים)\n"
+
+    family_doctor_dates = []
+    orthopedicHealthInsurance_doctor_dates = []
+    orthopedicHospital_doctor_dates = []
+    for page_num in note_sets_data:
         page_note_sets = note_sets_data.get(str(page_num), [])
-        
-        # Skip pages without note sets
-        if not page_note_sets:
-            continue
-            
-        markdown_content += f"## Page {page_num}\n\n"
-        
-        # Process each note set for this page
-        for i, note_set in enumerate(page_note_sets):
-            markdown_content += f"### Note Set {i+1}\n\n"
-            
-            # Hospital status
-            is_hospital = note_set.get('isHospital', False)
-            markdown_content += f"**On hospital:** {'Yes' if is_hospital else 'No'}\n\n"
-            
-            # Doctor type
-            doctor_type = note_set.get('doctorType', '')
-            if doctor_type:
-                markdown_content += f"**Doctor type:** {doctor_type}\n\n"
-            else:
-                markdown_content += f"**Doctor type:** Not specified\n\n"
-            
-            # Case date
-            case_date = note_set.get('caseDate', '')
-            if case_date:
-                markdown_content += f"**Date:** {case_date}\n\n"
-            else:
-                markdown_content += f"**Date:** Not specified\n\n"
-            
-            # Citation/Notes
-            citation_notes = note_set.get('citationNotes', '').strip()
-            if citation_notes:
-                markdown_content += f"**Citation/Notes:**\n\n{citation_notes}\n\n"
-            else:
-                markdown_content += f"**Citation/Notes:** None\n\n"
-            
-            # Add separator between note sets
-            if i < len(page_note_sets) - 1:
-                markdown_content += "---\n\n"
-        
-        # Add separator between pages
-        markdown_content += "---\n\n"
+        for note_set in page_note_sets:
+            # switch cases between family doctor and orthopedic doctor
+            if note_set.get('doctorType') == 'רופאה משפחה':
+                family_doctor_dates.append(note_set.get('caseDate', ''))
+            elif note_set.get('doctorType') == 'אורתופד':
+                if note_set.get('isHospital', True):
+                    orthopedicHospital_doctor_dates.append(note_set.get('caseDate', ''))
+                else:
+                    orthopedicHealthInsurance_doctor_dates.append(note_set.get('caseDate', ''))
+    markdown_content += f"  * רופא משפחה -- {', '.join(family_doctor_dates)}\n"
+    markdown_content += f"  * אורתופד -- {', '.join(orthopedicHealthInsurance_doctor_dates)}\n"
+    markdown_content += "* בתי חולים --\n"
+    if orthopedicHospital_doctor_dates:
+        markdown_content += f"  * אורתופד -- {', '.join(orthopedicHospital_doctor_dates)}\n"
+
+    markdown_content += "  1. במסמכים הרפואיים שעמדו לפני מצאתי רישומים רבים בהם מתוארים **כאבים בגב התחתון ובצוואר עובר לתאונה הראשונה**. להלן, חלק מאותן הרשומות:\n"
     
-    # If no pages have note sets, add a message
-    if not pages_with_notes:
-        markdown_content += "No note sets found for any page.\n\n"
+    # Acquire all notes and sort them by date and add to markdown content
+    all_notes = []
+    for page_num in note_sets_data:
+        page_note_sets = note_sets_data.get(str(page_num), [])
+        for note_set in page_note_sets:
+            # Add each note set to the list
+            all_notes.append(note_set)
+
+    # Sort each and each note (not note set) by date
+    all_notes.sort(key=lambda x: (x.get('caseDate', ''), x.get('doctorType', '')))
+    for i, note in enumerate(all_notes):
+        # Add each note to the markdown content
+        markdown_content += f"  {i}. {note.get('doctorType', 'Unknown')} -- רשם ביום {note.get('caseDate', 'Unknown')}: {note.get('citationNotes', '')}\n"
     
     try:
         # Generate a unique filename with timestamp
@@ -451,6 +433,7 @@ def publish_notes():
         # Check if reference file exists
         reference_docx_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'styles', 'reference.docx')
         reference_arg = ['--reference-doc=' + reference_docx_path] if os.path.exists(reference_docx_path) else []
+        rtl_arg = ["--metadata=dir:rtl"]
         
         print(f"Converting {temp_md_path} to {docx_path}")
         
@@ -460,7 +443,7 @@ def publish_notes():
                 temp_md_path,
                 'docx',
                 outputfile=docx_path,
-                extra_args=['--standalone'] + reference_arg
+                extra_args=['--standalone'] + reference_arg + rtl_arg
             )
         except Exception as pandoc_error:
             print(f"Error converting with pandoc: {str(pandoc_error)}")
