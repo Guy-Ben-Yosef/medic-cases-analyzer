@@ -697,7 +697,6 @@ function resetResults() {
     $('#pageNavigationButtons').addClass('d-none'); // Hide navigation buttons
 }
 
-// Initialize zoom and pan functionality for the page image
 function initializeImageZoomPan() {
     let scale = 1;
     const $image = $('#pageImageContent');
@@ -734,15 +733,25 @@ function initializeImageZoomPan() {
     let isDragging = false;
     let lastX, lastY;
     
+    // Modified mousedown event to explicitly handle left mouse button (button 0)
     $container.on('mousedown', function(e) {
-        isDragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        $container.css('cursor', 'grabbing');
+        // Check if it's the left mouse button (0) or middle mouse button (1)
+        if (e.button === 0 || e.button === 1) {
+            // Prevent default browser behavior for left click
+            e.preventDefault();
+            
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            $container.css('cursor', 'grabbing');
+        }
     });
     
-    $(document).on('mousemove', function(e) {
+    // Use the container for mousemove instead of document for better performance
+    $container.on('mousemove', function(e) {
         if (isDragging && scale > 1) {
+            e.preventDefault(); // Prevent selection during drag
+            
             const deltaX = e.clientX - lastX;
             const deltaY = e.clientY - lastY;
             
@@ -759,9 +768,19 @@ function initializeImageZoomPan() {
         }
     });
     
+    // Handle mouseup on both container and document for better reliability
+    $container.on('mouseup mouseleave', function() {
+        if (isDragging) {
+            isDragging = false;
+            $container.css('cursor', 'grab');
+        }
+    });
+    
     $(document).on('mouseup', function() {
-        isDragging = false;
-        $container.css('cursor', 'grab');
+        if (isDragging) {
+            isDragging = false;
+            $container.css('cursor', 'grab');
+        }
     });
     
     // Update image transform with current scale
@@ -774,6 +793,11 @@ function initializeImageZoomPan() {
     
     // Make container have grab cursor
     $container.css('cursor', 'grab');
+    
+    // Disable context menu on container to prevent interference with right-click
+    $container.on('contextmenu', function(e) {
+        e.preventDefault();
+    });
 }
 
 // Show error message
