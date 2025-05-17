@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css">
 </head>
 <body>
     <div class="container mt-4">
@@ -83,9 +84,11 @@
                     <div class="card-body">
                         <form id="searchForm" class="mb-3 d-none">
                             <div class="mb-3">
-                                <label for="searchWords" class="form-label">Search Words (comma separated)</label>
-                                <input type="text" class="form-control" id="searchWords" name="searchWords" 
-                                    value="{{ ','.join(default_words) }}" required>
+                                <label for="searchWordsSelect" class="form-label">Search Words</label>
+                                <select class="form-select" id="searchWordsSelect" name="searchWords" 
+                                        multiple data-actions-box="true" data-search-words='{{ search_words|tojson }}'>
+                                    <!-- Options will be populated by JavaScript -->
+                                </select>
                             </div>
                             
                             <div class="mb-3">
@@ -281,5 +284,6 @@
         integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" 
         crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
 </body>
 </html>

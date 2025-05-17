@@ -431,3 +431,23 @@
         padding-right: 0.5rem;
     }
 }
+
+/* Add this to styles.css */
+.bootstrap-select .dropdown-menu {
+    max-height: 300px;
+}
+
+.bootstrap-select .dropdown-menu li a {
+    direction: rtl;
+    text-align: right;
+}
+
+.bootstrap-select .dropdown-toggle .filter-option-inner-inner {
+    direction: rtl;
+    text-align: right;
+}
+
+.bootstrap-select .dropdown-menu .bs-searchbox input {
+    direction: rtl;
+    text-align: right;
+}

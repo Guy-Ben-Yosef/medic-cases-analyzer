@@ -40,13 +40,25 @@ os.makedirs(IMAGES_FOLDER, exist_ok=True)
 os.makedirs(NOTES_FOLDER, exist_ok=True)
 os.makedirs(DOCX_FOLDER, exist_ok=True)
 
-# Default search words
-DEFAULT_SEARCH_WORDS = ["גב", "יד"]
+def load_search_words():
+    """Load search words and their representative groups from JSON file."""
+    try:
+        search_words_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_words.json')
+        with open(search_words_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading search words: {str(e)}")
+        # Return a simple default if file can't be loaded
+        return [
+            {"word": "גב", "representative_group": ["גב"]},
+            {"word": "יד", "representative_group": ["יד"]}
+        ]
 
 @app.route('/')
 def index():
     """Render the main page."""
-    return render_template('index.html', default_words=DEFAULT_SEARCH_WORDS)
+    search_words = load_search_words()
+    return render_template('index.html', search_words=search_words)
 
 @app.route('/upload-pdf', methods=['POST'])
 def upload_pdf():

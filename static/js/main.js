@@ -105,6 +105,16 @@ $(document).ready(function() {
         removeNoteSet($(this).closest('.note-set'));
     });
 
+    // Initialize Bootstrap Select for the multi-select dropdown
+    $('#searchWordsSelect').selectpicker({
+        actionsBox: true,
+        liveSearch: true,
+        selectedTextFormat: 'count > 2',
+        countSelectedText: '{0} words selected',
+        width: '100%',
+        noneSelectedText: 'Select search words...'
+    });
+
     // Update publish notes button text to show DOCX
     updatePublishButtonText();
 
@@ -113,6 +123,9 @@ $(document).ready(function() {
 
     // Initialize with at least one note set when first loading a page
     initializeNoteSets();
+
+    // Populate the dropdown with words from the server
+    populateSearchWords();
 });
 
 // Save note for the current page
@@ -278,30 +291,23 @@ function searchAndFilterResults() {
         return;
     }
     
-    // Get search words as an array
-    const searchWordsInput = $('#searchWords').val().trim();
-    const searchWords = searchWordsInput.split(/\s*,\s*/).filter(word => word.length > 0);
+    // Get selected words from the dropdown
+    const selectedOptions = $('#searchWordsSelect option:selected');
+    const searchWords = [];
+    const searchWordGroups = [];
     
-    // Inform user about whole word matching
-    if (searchWords.length > 0) {
-        const infoMessage = $('<div>')
-            .addClass('alert alert-info mb-2')
-            .html('<strong>Note:</strong> Search will match whole words only. For example, searching for "pose" will not match "compose".')
-            .hide();
+    // Collect all selected words and their representative groups
+    selectedOptions.each(function() {
+        const word = $(this).val();
+        searchWords.push(word);
         
-        // Add message if not already shown
-        if ($('#searchForm .alert-info').length === 0) {
-            $('#searchForm .btn-success').before(infoMessage);
-            infoMessage.fadeIn();
-            
-            // Set a timeout to remove the message after a few seconds
-            setTimeout(() => {
-                infoMessage.fadeOut(() => {
-                    infoMessage.remove();
-                });
-            }, 5000);
-        }
-    }
+        // Get the representative group for this word
+        const representativeGroup = JSON.parse($(this).attr('data-representative-group'));
+        searchWordGroups.push(...representativeGroup);
+    });
+    
+    // Use Set to remove duplicates, then convert back to array
+    const uniqueSearchWords = [...new Set(searchWordGroups)];
     
     // Get filter type
     const filterType = $('input[name="filterType"]:checked').val();
@@ -309,7 +315,7 @@ function searchAndFilterResults() {
     // Prepare request data
     const requestData = {
         resultPath: currentResultPath,
-        searchWords: searchWords,
+        searchWords: uniqueSearchWords,
         filterType: filterType
     };
     
@@ -1273,4 +1279,33 @@ function saveNoteSetDataForCurrentPage() {
         // Update the page list indicator
         updatePageListItemWithNoteIndicator(currentPageNumber);
     }
+}
+
+function populateSearchWords() {
+    // Get the search words data from the data attribute
+    const searchWordsData = JSON.parse($('#searchWordsSelect').attr('data-search-words') || '[]');
+    
+    if (!searchWordsData || searchWordsData.length === 0) {
+        console.error('No search words data available');
+        return;
+    }
+    
+    // Clear existing options
+    $('#searchWordsSelect').empty();
+    
+    // Add options for each word
+    searchWordsData.forEach(wordGroup => {
+        const option = $('<option>')
+            .val(wordGroup.word)
+            .text(wordGroup.word)
+            .attr('data-representative-group', JSON.stringify(wordGroup.representative_group));
+        
+        $('#searchWordsSelect').append(option);
+    });
+    
+    // Select all options by default
+    $('#searchWordsSelect option').prop('selected', true);
+    
+    // Refresh the select picker to show the new options with all selected
+    $('#searchWordsSelect').selectpicker('refresh');
 }
