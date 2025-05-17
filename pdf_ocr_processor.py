@@ -7,6 +7,7 @@ from tqdm import tqdm
 import logging
 from PyPDF2 import PdfReader
 import fitz
+from PIL import Image
 
 # Configure logging - INFO to file, WARNING and ERROR to console
 # File handler for all logs (INFO and above)
@@ -76,6 +77,77 @@ def save_to_json(results, output_path):
         logger.error(f"Error saving results to JSON: {str(e)}")
         return False
 
+def remove_highlights_from_page(pdf_path, page_number, output_dir=None, dpi=300):
+    """
+    Remove all highlights from a specific page of a PDF and save it as an image.
+    
+    Args:
+        pdf_path: Path to the PDF file
+        page_number: Page number to process (1-based indexing)
+        output_dir: Directory to save the image (default: current directory)
+        dpi: DPI for the output image (default: 300)
+        
+    Returns:
+        Path to the saved image
+    """
+    # Validate inputs
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+    
+    # Create output directory if needed
+    if output_dir is None:
+        output_dir = os.getcwd()
+    os.makedirs(output_dir, exist_ok=True)
+    
+    try:
+        # Open the PDF document with PyMuPDF
+        doc = fitz.open(pdf_path)
+        
+        # Check if page number is valid
+        if page_number < 1 or page_number > len(doc):
+            raise ValueError(f"Invalid page number: {page_number}. PDF has {len(doc)} pages.")
+        
+        # Get the specified page (PyMuPDF uses 0-based indexing)
+        page = doc[page_number - 1]
+        
+        # Get all annotations on the page
+        annotations = page.annots()
+        
+        # Count how many highlights were removed
+        removed_count = 0
+        
+        # Remove all annotations from the page
+        if annotations:
+            for annot in annotations:
+                # Remove the annotation
+                page.delete_annot(annot)
+                removed_count += 1
+        
+        # Create the output filename
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        output_filename = f"page{page_number}_no_highlights.png"
+        output_path = os.path.join(output_dir, output_filename)
+        
+        # Render the page to an image at the specified DPI
+        pix = page.get_pixmap(matrix=fitz.Matrix(dpi/72, dpi/72))
+        
+        # Convert PyMuPDF pixmap to PIL Image
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        
+        # Save the image
+        img.save(output_path, "PNG")
+        
+        logger.info(f"Removed {removed_count} annotations from page {page_number}")
+        logger.info(f"Saved image to: {output_path}")
+        
+        # Close the document
+        doc.close()
+        
+        return output_path, removed_count
+        
+    except Exception as e:
+        raise Exception(f"Error processing PDF: {str(e)}")
+
 def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_output_dir=None, progress_callback=None):
     """
     Process a PDF document with mixed Hebrew and English text and save results to JSON.
@@ -107,6 +179,11 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
     if image_output_dir:
         os.makedirs(image_output_dir, exist_ok=True)
         logger.info(f"Images will be saved to: {image_output_dir}")
+        
+        # Create a subdirectory for the clean images (without highlights)
+        clean_images_dir = os.path.join(image_output_dir, "clean_images")
+        os.makedirs(clean_images_dir, exist_ok=True)
+        logger.info(f"Clean images will be saved to: {clean_images_dir}")
     
     # Setup for multilingual OCR (Hebrew + English)
     lang = setup_tesseract_for_multilingual()
@@ -160,28 +237,73 @@ def process_pdf(pdf_path, output_path=None, page_numbers=None, dpi=300, image_ou
                 page_result["has_annotations"] = has_annotations
                 page_result["annotation_types"] = annotation_types
                 
-                # Step 2: Convert the specific page to an image
-                # pdf2image uses 1-based indexing for first_page/last_page
-                images = convert_from_path(
-                    pdf_path, 
-                    dpi=dpi, 
-                    first_page=page_num, 
-                    last_page=page_num
-                )
+                # Save image paths for both regular and clean versions
+                original_image_path = None
+                clean_image_path = None
                 
-                if images:
-                    # Save the image directly to the output directory
-                    if image_output_dir:
-                        image_filename = f"page_{page_num}.png"
-                        image_path = os.path.join(image_output_dir, image_filename)
-                        images[0].save(image_path, "PNG")
-                        page_result["image_path"] = image_path
+                # Step 2: Handle page differently based on whether it has highlights
+                if has_annotations and image_output_dir:
+                    # Step 2a: First, convert the page with highlights to image (for viewing)
+                    images_with_highlights = convert_from_path(
+                        pdf_path, 
+                        dpi=dpi, 
+                        first_page=page_num, 
+                        last_page=page_num
+                    )
                     
-                    # Step 3: Perform OCR on the image
-                    page_result["text"] = perform_ocr_on_image(images[0], lang)
+                    if images_with_highlights:
+                        # Save the original image with highlights
+                        original_image_filename = f"page_{page_num}.png"
+                        original_image_path = os.path.join(image_output_dir, original_image_filename)
+                        images_with_highlights[0].save(original_image_path, "PNG")
+                        page_result["image_path"] = original_image_path
+                        page_result["highlighted_image_path"] = original_image_path
+                        
+                        # Step 2b: Now, remove highlights and save clean version (for OCR)
+                        try:
+                            clean_image_path, removed_count = remove_highlights_from_page(
+                                pdf_path, 
+                                page_num, 
+                                output_dir=clean_images_dir, 
+                                dpi=dpi
+                            )
+                            page_result["clean_image_path"] = clean_image_path
+                            page_result["removed_highlights_count"] = removed_count
+                            
+                            # Step 2c: Perform OCR on the clean image
+                            clean_image = Image.open(clean_image_path)
+                            page_result["text"] = perform_ocr_on_image(clean_image, lang)
+                            
+                        except Exception as e:
+                            logger.error(f"Error removing highlights from page {page_num}: {str(e)}")
+                            # Fallback: Perform OCR on the original image with highlights
+                            page_result["text"] = perform_ocr_on_image(images_with_highlights[0], lang)
+                    else:
+                        logger.warning(f"No image generated for page {page_num}")
+                        page_result["text"] = ""
+                        
                 else:
-                    logger.warning(f"No image generated for page {page_num}")
-                    page_result["text"] = ""
+                    # Step 3: Regular processing for pages without highlights
+                    images = convert_from_path(
+                        pdf_path, 
+                        dpi=dpi, 
+                        first_page=page_num, 
+                        last_page=page_num
+                    )
+                    
+                    if images:
+                        # Save the image directly to the output directory
+                        if image_output_dir:
+                            image_filename = f"page_{page_num}.png"
+                            image_path = os.path.join(image_output_dir, image_filename)
+                            images[0].save(image_path, "PNG")
+                            page_result["image_path"] = image_path
+                        
+                        # Perform OCR on the image
+                        page_result["text"] = perform_ocr_on_image(images[0], lang)
+                    else:
+                        logger.warning(f"No image generated for page {page_num}")
+                        page_result["text"] = ""
                 
                 results.append(page_result)
                 

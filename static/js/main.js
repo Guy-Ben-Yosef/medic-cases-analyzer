@@ -10,6 +10,7 @@ let currentPageNumber = null;
 let pageNotes = {}; // Object to store notes for each page
 let pageMetadata = {}; // Object to store metadata (hospital, doctor type, date) for each page
 let pageNoteSets = {}; // Object to store all note sets for each page
+let showingCleanImage = false;
 
 // Document ready function
 $(document).ready(function() {
@@ -412,7 +413,13 @@ function displayResults() {
                 <div class="page-list-item">
                     <span>Page ${pageNumber}</span>
                     <div class="badge-container">
-                        ${hasAnnotations ? '<span class="badge bg-warning text-dark">Highlighted</span>' : ''}
+                        ${hasAnnotations ? 
+                            `<span class="badge bg-warning text-dark">Highlighted${
+                                page.removed_highlights_count ? 
+                                ` <span class="badge badge-highlights">${page.removed_highlights_count}</span>` : 
+                                ''}
+                            </span>` : 
+                            ''}
                         ${containsSearchWords ? '<span class="badge bg-success">Matched Words</span>' : ''}
                     </div>
                 </div>
@@ -504,6 +511,20 @@ function displayPageContent(pageNumber) {
         // Prepare page content (text)
         const pageText = page.text || 'No text content available for this page.';
         
+        // Reset clean image state when navigating to a new page
+        showingCleanImage = false;
+        
+        // Display info about highlights removal if applicable
+        if (page.has_annotations) {
+            if (page.removed_highlights_count > 0) {
+                $('#highlightInfo').html(`<div class="highlighted-notice">This page contains ${page.removed_highlights_count} highlight(s). OCR was performed on a cleaned version for better results.</div>`).removeClass('d-none');
+            } else {
+                $('#highlightInfo').html(`<div class="highlighted-notice">This page contains highlights.</div>`).removeClass('d-none');
+            }
+        } else {
+            $('#highlightInfo').html('').addClass('d-none');
+        }
+        
         // Display page image if available
         if (page.image_url) {
             // Initialize the image viewer with zoom and pan capabilities
@@ -513,6 +534,10 @@ function displayPageContent(pageNumber) {
                         <button id="zoomIn" class="btn btn-sm btn-light" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
                         <button id="zoomOut" class="btn btn-sm btn-light" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
                         <button id="resetZoom" class="btn btn-sm btn-light" title="Reset"><i class="bi bi-arrows-angle-contract"></i></button>
+                        ${page.has_annotations && page.clean_image_url ? `
+                        <button id="toggleHighlightBtn" class="btn btn-sm btn-light" title="Toggle Highlights">
+                            Show Without Highlights
+                        </button>` : ''}
                     </div>
                     <div class="image-wrapper">
                         <img src="${page.image_url}" class="page-image-content" id="pageImageContent" alt="Page ${pageNumber}">
@@ -522,6 +547,11 @@ function displayPageContent(pageNumber) {
             
             // Initialize zoom and pan functionality
             initializeImageZoomPan();
+            
+            // Add event handler for toggle highlight button if present
+            if (page.has_annotations && page.clean_image_url) {
+                $('#toggleHighlightBtn').off('click').on('click', toggleHighlightedImage);
+            }
         } else {
             $('#pageImage').html('<p class="text-muted">Image not available for this page.</p>');
         }
@@ -1308,4 +1338,46 @@ function populateSearchWords() {
     
     // Refresh the select picker to show the new options with all selected
     $('#searchWordsSelect').selectpicker('refresh');
+}
+
+function toggleHighlightedImage() {
+    if (!currentPageNumber) return;
+    
+    // Find the current page data
+    const page = getCurrentPageData();
+    
+    if (!page || !page.has_annotations) {
+        // No need to toggle if page isn't highlighted
+        return;
+    }
+    
+    // Check if we have both image URLs
+    if (page.image_url && page.clean_image_url) {
+        const $image = $('#pageImageContent');
+        
+        if (showingCleanImage) {
+            // Switch to original highlighted image
+            $image.attr('src', page.image_url);
+            $('#toggleHighlightBtn').text('Show Without Highlights');
+        } else {
+            // Switch to clean image
+            $image.attr('src', page.clean_image_url);
+            $('#toggleHighlightBtn').text('Show With Highlights');
+        }
+        
+        // Toggle the state
+        showingCleanImage = !showingCleanImage;
+    }
+}
+
+// Helper function to get current page data
+function getCurrentPageData() {
+    if (!currentPageNumber || !filteredResults) return null;
+    
+    // Check if we should look in all_pages or filtered_pages
+    const isShowingAllPages = filteredResults.search_information.filter_type === 'all';
+    const pagesArray = isShowingAllPages ? filteredResults.all_pages : filteredResults.filtered_pages;
+    
+    // Find the page data
+    return pagesArray.find(p => p.page_number === currentPageNumber);
 }

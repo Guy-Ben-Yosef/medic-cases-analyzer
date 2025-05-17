@@ -177,6 +177,10 @@ def upload_pdf():
                             def progress_callback(current_page, total_pages, status, message=None, error=None):
                                 update_progress(unique_id, current_page, status, message, error)
                             
+                            # Create a subdirectory for clean images
+                            clean_images_dir = os.path.join(document_images_folder, "clean_images")
+                            os.makedirs(clean_images_dir, exist_ok=True)
+                            
                             # Process the PDF with progress updates
                             success = process_pdf(
                                 pdf_path, 
@@ -200,8 +204,12 @@ def upload_pdf():
                                     for page in results['pages']:
                                         if 'image_path' in page:
                                             page_num = page['page_number']
-                                            # Build the URL directly instead of using url_for
+                                            # Build the URL for the regular image
                                             page['image_url'] = f'/page-images/{unique_id}/{page_num}'
+                                            
+                                            # For pages with highlights, add URL for the clean version too
+                                            if page.get('has_annotations', False) and 'clean_image_path' in page:
+                                                page['clean_image_url'] = f'/clean-page-images/{unique_id}/{page_num}'
                                     
                                     # Save updated results
                                     with open(output_path, 'w', encoding='utf-8') as f:
@@ -209,8 +217,8 @@ def upload_pdf():
                                 except Exception as e:
                                     print(f"Error updating JSON with image URLs: {str(e)}")
                                     # Still mark as complete since OCR processing succeeded
-                                    update_progress(unique_id, total_pages_to_process, 'completed', 
-                                                  message="Processing complete, but error with image links.")
+                                    update_progress(unique_id, total_pages, 'completed', 
+                                                message="Processing complete, but error with image links.")
                             
                             # Delete the temporary PDF file after processing
                             if os.path.exists(pdf_path):
@@ -528,6 +536,14 @@ def publish_notes():
         print(f"Error converting to DOCX: {str(e)}")
         print(f"Detailed error: {error_details}")
         return jsonify({'error': f'Error converting to DOCX: {str(e)}'}), 500
+
+@app.route('/clean-page-images/<unique_id>/<int:page_number>')
+def serve_clean_page_image(unique_id, page_number):
+    """Serve a clean page image (without highlights)."""
+    # The clean image files are stored with a specific naming convention
+    image_filename = f"page{page_number}_no_highlights.png"
+    clean_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id, "clean_images")
+    return send_from_directory(clean_images_folder, image_filename)
 
 def display_ascii_art():
     """
