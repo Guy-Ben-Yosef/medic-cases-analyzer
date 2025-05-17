@@ -41,18 +41,48 @@ os.makedirs(NOTES_FOLDER, exist_ok=True)
 os.makedirs(DOCX_FOLDER, exist_ok=True)
 
 def load_search_words():
-    """Load search words and their representative groups from JSON file."""
+    """Load search words with fallback to template if user file doesn't exist."""
+    user_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_words.json')
+    template_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_words.template.json')
+    
+    # Try to load user-specific file first
+    if os.path.exists(user_file_path):
+        try:
+            with open(user_file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading user search words: {str(e)}")
+    
+    # Fall back to template file
     try:
-        search_words_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_words.json')
-        with open(search_words_path, 'r', encoding='utf-8') as f:
+        with open(template_file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading search words: {str(e)}")
-        # Return a simple default if file can't be loaded
+        print(f"Error loading template search words: {str(e)}")
+        # Return a basic default if both files fail
         return [
             {"word": "גב", "representative_group": ["גב"]},
             {"word": "יד", "representative_group": ["יד"]}
         ]
+
+def ensure_user_search_words_file():
+    """Create user search words file from template if it doesn't exist."""
+    user_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_words.json')
+    template_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_words.template.json')
+    
+    # Only create if user file doesn't exist
+    if not os.path.exists(user_file_path) and os.path.exists(template_file_path):
+        try:
+            # Copy template to user file
+            with open(template_file_path, 'r', encoding='utf-8') as template_file:
+                template_data = json.load(template_file)
+            
+            with open(user_file_path, 'w', encoding='utf-8') as user_file:
+                json.dump(template_data, user_file, ensure_ascii=False, indent=2)
+                
+            print("Created user search words file from template")
+        except Exception as e:
+            print(f"Error creating user search words file: {str(e)}")
 
 @app.route('/')
 def index():
@@ -534,4 +564,5 @@ def display_ascii_art():
 
 if __name__ == '__main__':
     display_ascii_art()
+    ensure_user_search_words_file()
     socketio.run(app, debug=True, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)
