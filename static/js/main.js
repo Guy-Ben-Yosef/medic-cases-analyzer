@@ -127,6 +127,12 @@ $(document).ready(function() {
 
     // Populate the dropdown with words from the server
     populateSearchWords();
+
+    // Initialize sticky features
+    if (window.stickyFeatures) {
+        window.stickyFeatures.initialize();
+        window.stickyFeatures.addKeyboardShortcuts();
+    }
 });
 
 // Save note for the current page
@@ -350,6 +356,13 @@ function displayResults() {
     
     // Show results section
     $('#resultsSection').removeClass('d-none');
+
+    // Re-initialize sticky features after results are displayed
+    if (window.stickyFeatures) {
+        setTimeout(function() {
+            window.stickyFeatures.initialize();
+        }, 100);
+    }
     
     // Set default view mode
     $('#viewModeImage').prop('checked', true).trigger('change');
@@ -721,6 +734,11 @@ function resetResults() {
     pageNoteSets = {}; // Clear note sets when loading a new document
     allPageNumbers = []; // Reset navigation arrays
     matchingPageNumbers = [];
+
+    // Reset sticky states
+    $('.sticky-notes-wrapper').removeClass('sticky-active');
+    $('.sticky-nav-wrapper').removeClass('sticky-active');
+    $('.floating-notes-toggle').remove();
     
     // Reset UI elements
     $('#resultsSection').addClass('d-none');
@@ -1258,6 +1276,11 @@ function addNewNoteSet(data = null) {
     // Update the page list indicator
     updatePageListItemWithNoteIndicator(currentPageNumber);
     
+    // Update floating notes button if it exists
+    if (window.stickyFeatures) {
+        window.stickyFeatures.updateFloatingButton();
+    }
+
     return template;
 }
 
@@ -1276,6 +1299,11 @@ function removeNoteSet(noteSetElement) {
         // Save the current state
         if (currentPageNumber) {
             saveNoteSetDataForCurrentPage();
+        }
+        
+        // Update floating notes button if it exists
+        if (window.stickyFeatures) {
+            window.stickyFeatures.updateFloatingButton();
         }
         
         // Update the page list indicator
