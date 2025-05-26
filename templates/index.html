@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css">
 </head>
 <body>
-    <div class="container mt-4">
+    <div class="container-fluid mt-4 px-3">
         <h1 class="text-center mb-4">Medic Cases Analyzer</h1>
         
         <div class="row">
@@ -144,72 +144,60 @@
             </div>
         </div>
         
-        <!-- Results Section -->
+        <!-- Results Section with New Layout -->
         <div class="card mt-4 d-none" id="resultsSection">
             <div class="card-header">
                 <h3>Results</h3>
                 <small id="resultsSummary"></small>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="list-group" id="pageList">
-                            <!-- Page list will be dynamically populated here -->
+            <div class="card-body p-2">
+                <div class="row g-2">
+                    <!-- Narrower Page List -->
+                    <div class="col-2">
+                        <div class="page-list-container">
+                            <div class="list-group" id="pageList">
+                                <!-- Page list will be dynamically populated here -->
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header" id="pageHeader">
-                                Select a page to view content
+                    
+                    <!-- Main Content Area -->
+                    <div class="col-10">
+                        <div class="main-content-card">
+                            <div class="card-header d-flex justify-content-between align-items-center py-2" id="pageHeader">
+                                <span>Select a page to view content</span>
+                                <div id="highlightInfo" class="d-none"></div>
+                                <div id="matchedWords" class="matched-words-display d-none"></div>
                             </div>
 
-                            <div class="btn-toolbar mb-3 justify-content-center" id="pageNavigationButtons">
-                                <div class="btn-group me-2">
-                                    <button type="button" class="btn btn-outline-secondary" id="prevPageBtn" title="Previous Page">
-                                        <i class="bi bi-chevron-left"></i> Previous
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary" id="prevMatchingPageBtn" title="Previous Matching Page">
-                                        <i class="bi bi-skip-backward"></i> Previous Match
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary" id="nextMatchingPageBtn" title="Next Matching Page">
-                                        Next Match <i class="bi bi-skip-forward"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" id="nextPageBtn" title="Next Page">
-                                        Next <i class="bi bi-chevron-right"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Notes Section with Multiple Note Sets -->
-                            <div class="card-body pb-0">
-                                <!-- Container for multiple note sets -->
-                                <div id="noteSetsContainer">
+                            <div class="card-body p-2">
+                                <!-- Notes Section - moved to top -->
+                                <div id="noteSetsContainer" class="notes-section-compact mb-3">
                                     <!-- Template for a note set - this will be duplicated for each new set -->
-                                    <div class="note-set mb-3" id="noteSet-template" style="display: none;">
-                                        <div class="card">
-                                            <div class="card-header d-flex justify-content-between align-items-center">
-                                                <h6 class="mb-0">Note Set <span class="note-set-number"></span></h6>
-                                                <button type="button" class="btn btn-sm btn-danger remove-note-set">
-                                                    <i class="bi bi-x-lg"></i> Remove
+                                    <div class="note-set mb-2" id="noteSet-template" style="display: none;">
+                                        <div class="card border-light">
+                                            <div class="card-header d-flex justify-content-between align-items-center py-1 px-2">
+                                                <h6 class="mb-0 small">Note Set <span class="note-set-number"></span></h6>
+                                                <button type="button" class="btn btn-sm btn-outline-danger remove-note-set py-0 px-1">
+                                                    <i class="bi bi-x-lg"></i>
                                                 </button>
                                             </div>
-                                            <div class="card-body">
-                                                <div class="row mb-3">
+                                            <div class="card-body p-2">
+                                                <div class="row mb-2">
                                                     <!-- Hospital Checkbox -->
-                                                    <div class="col-md-4 mb-2">
+                                                    <div class="col-md-3 mb-1">
                                                         <div class="form-check">
                                                             <input class="form-check-input isHospital" type="checkbox">
-                                                            <label class="form-check-label">
-                                                                On hospital?
+                                                            <label class="form-check-label small">
+                                                                Hospital?
                                                             </label>
                                                         </div>
                                                     </div>
                                                     
                                                     <!-- Doctor Type Dropdown -->
-                                                    <div class="col-md-4 mb-2">
-                                                        <label class="form-label">Doctor type:</label>
-                                                        <select class="form-select doctorType">
-                                                            <option value="" selected>Select doctor type</option>
+                                                    <div class="col-md-3 mb-1">
+                                                        <select class="form-select form-select-sm doctorType">
+                                                            <option value="" selected>Doctor type</option>
                                                             <option value="אורתופד">אורתופד</option>
                                                             <option value="כירורג">כירורג</option>
                                                             <option value="פיזיותרפיה">פיזיותרפיה</option>
@@ -220,16 +208,14 @@
                                                     </div>
                                                     
                                                     <!-- Date Input -->
-                                                    <div class="col-md-4 mb-2">
-                                                        <label class="form-label">Date:</label>
-                                                        <input type="text" class="form-control caseDate" placeholder="DD/MM/YYYY">
+                                                    <div class="col-md-3 mb-1">
+                                                        <input type="text" class="form-control form-control-sm caseDate" placeholder="DD/MM/YYYY">
                                                     </div>
-                                                </div>
-                                                
-                                                <!-- Citation/Notes Textarea -->
-                                                <div class="mb-2">
-                                                    <label class="form-label">Citation/Notes:</label>
-                                                    <textarea class="form-control rtl-text citationNotes" rows="2" placeholder="הוסף את ההערות שלך כאן..." dir="rtl"></textarea>
+                                                    
+                                                    <!-- Citation/Notes Textarea -->
+                                                    <div class="col-md-3 mb-1">
+                                                        <textarea class="form-control form-control-sm rtl-text citationNotes" rows="1" placeholder="הערות..." dir="rtl"></textarea>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -238,39 +224,63 @@
                                     <!-- Dynamic note sets will be added here -->
                                     <div id="dynamicNoteSets"></div>
                                     
-                                    <!-- Button to add a new note set -->
-                                    <div class="text-center mb-3">
-                                        <button type="button" class="btn btn-primary" id="addNoteSetBtn">
-                                            <i class="bi bi-plus-lg"></i> Add New Note Set
+                                    <!-- Smaller Add button -->
+                                    <div class="text-center mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="addNoteSetBtn">
+                                            <i class="bi bi-plus"></i> Add Note Set
                                         </button>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="card-body">
-                                <!-- View mode toggle -->
-                                <div class="btn-group btn-group-sm mb-3" id="viewModeToggle" role="group" aria-label="View mode">
-                                    <input type="radio" class="btn-check" name="viewMode" id="viewModeImage" autocomplete="off" checked>
-                                    <label class="btn btn-outline-primary" for="viewModeImage">Page Image</label>
-                                    
-                                    <input type="radio" class="btn-check" name="viewMode" id="viewModeText" autocomplete="off">
-                                    <label class="btn btn-outline-primary" for="viewModeText">OCR Text</label>
-                                </div>
-
-                                <!-- Matched words display -->
-                                 <div id="highlightInfo" class="d-none"></div>
-                                <div id="matchedWords" class="matched-words-display d-none"></div>                                
-                                <!-- Page image container -->
-                                <div id="pageImageContainer">
-                                    <div id="pageImage" class="page-image-container">
-                                        <!-- Page image will be displayed here -->
+                                <!-- Main Image Container with Navigation -->
+                                <div class="d-flex gap-2">
+                                    <!-- Image Container - Main Focus -->
+                                    <div class="image-main-container flex-grow-1">
+                                        <div id="pageImageContainer">
+                                            <div id="pageImage" class="page-image-container-main">
+                                                <!-- Page image will be displayed here -->
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Page text container (hidden by default) -->
+                                        <div id="pageTextContainer" class="d-none">
+                                            <div id="pageContent" class="page-text-content">
+                                                <!-- Page text content will be displayed here -->
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- View mode toggle - moved below image -->
+                                        <div class="text-center mt-2">
+                                            <div class="btn-group btn-group-sm" id="viewModeToggle" role="group" aria-label="View mode">
+                                                <input type="radio" class="btn-check" name="viewMode" id="viewModeImage" autocomplete="off" checked>
+                                                <label class="btn btn-outline-primary" for="viewModeImage">Page Image</label>
+                                                
+                                                <input type="radio" class="btn-check" name="viewMode" id="viewModeText" autocomplete="off">
+                                                <label class="btn btn-outline-primary" for="viewModeText">OCR Text</label>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                
-                                <!-- Page text container -->
-                                <div id="pageTextContainer" class="d-none">
-                                    <div id="pageContent" class="page-text-content">
-                                        <!-- Page text content will be displayed here -->
+
+                                    <!-- Vertical Navigation Buttons -->
+                                    <div class="navigation-vertical" id="pageNavigationButtons">
+                                        <div class="btn-group-vertical" role="group">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="prevPageBtn" title="Previous Page">
+                                                <i class="bi bi-chevron-up"></i>
+                                                <div class="nav-btn-text">Prev</div>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm mb-1" id="prevMatchingPageBtn" title="Previous Matching Page">
+                                                <i class="bi bi-skip-backward-btn"></i>
+                                                <div class="nav-btn-text">P.Match</div>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm mb-1" id="nextMatchingPageBtn" title="Next Matching Page">
+                                                <i class="bi bi-skip-forward-btn"></i>
+                                                <div class="nav-btn-text">N.Match</div>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="nextPageBtn" title="Next Page">
+                                                <i class="bi bi-chevron-down"></i>
+                                                <div class="nav-btn-text">Next</div>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
