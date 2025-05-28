@@ -86,6 +86,9 @@ function activateStickyNav(navWrapper) {
     if (!navWrapper.hasClass('sticky-active')) {
         navWrapper.addClass('sticky-active');
         
+        // Position the navigation relative to the image container
+        positionStickyNav(navWrapper);
+        
         // Update button text to icons only
         $('#pageNavigationButtons .btn').each(function() {
             const $btn = $(this);
@@ -108,9 +111,87 @@ function activateStickyNav(navWrapper) {
     }
 }
 
+// Position sticky navigation relative to content
+function positionStickyNav(navWrapper) {
+    // Get the image container position and dimensions
+    const imageContainer = $('#pageImageContainer:visible, #pageTextContainer:visible').first();
+    
+    if (imageContainer.length) {
+        const containerOffset = imageContainer.offset();
+        const containerWidth = imageContainer.outerWidth();
+        const containerHeight = imageContainer.outerHeight();
+        const navHeight = navWrapper.outerHeight();
+        
+        // Calculate center position relative to viewport
+        const scrollTop = $(window).scrollTop();
+        const topPosition = containerOffset.top - scrollTop + (containerHeight / 2) - (navHeight / 2);
+        
+        // Ensure navigation stays within viewport bounds
+        const minTop = 20;
+        const maxTop = $(window).height() - navHeight - 20;
+        const finalTop = Math.max(minTop, Math.min(topPosition, maxTop));
+        
+        // Update CSS to position correctly
+        navWrapper.css({
+            'position': 'fixed',
+            'top': finalTop + 'px',
+            'left': '50%',
+            'transform': 'translateX(-50%)'
+        });
+    }
+}
+
+// Update position on scroll
+function handleStickyScroll() {
+    const scrollTop = $(window).scrollTop();
+    const notesWrapper = $('.sticky-notes-wrapper');
+    const navWrapper = $('.sticky-nav-wrapper');
+    
+    // Check if we're in the results section
+    if (!$('#resultsSection').hasClass('d-none')) {
+        const resultsTop = $('#resultsSection').offset().top;
+        const triggerPoint = resultsTop - 100;
+        
+        // Check navigation wrapper position
+        if (navWrapper.length) {
+            const navOriginalTop = navWrapper.offset().top - scrollTop;
+            
+            if (scrollTop > triggerPoint && navOriginalTop <= 10) {
+                activateStickyNav(navWrapper);
+                // Update position on scroll
+                if (navWrapper.hasClass('sticky-active')) {
+                    positionStickyNav(navWrapper);
+                }
+            } else if (scrollTop <= triggerPoint) {
+                deactivateStickyNav(navWrapper);
+            }
+        }
+        
+        // Check notes wrapper position
+        if (notesWrapper.length) {
+            const notesOriginalTop = notesWrapper.offset().top - scrollTop;
+            
+            if (scrollTop > triggerPoint && notesOriginalTop <= 100) {
+                activateStickyNotes(notesWrapper);
+            } else if (scrollTop <= triggerPoint) {
+                deactivateStickyNotes(notesWrapper);
+            }
+        }
+    }
+    
+    lastScrollTop = scrollTop;
+}
+
 // Deactivate sticky navigation
 function deactivateStickyNav(navWrapper) {
     navWrapper.removeClass('sticky-active');
+    // Reset inline styles
+    navWrapper.css({
+        'position': '',
+        'top': '',
+        'left': '',
+        'transform': ''
+    });
 }
 
 // Activate sticky notes
