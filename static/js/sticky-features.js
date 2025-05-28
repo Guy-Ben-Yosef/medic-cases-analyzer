@@ -248,7 +248,7 @@ function addMinimizeButton(notesWrapper) {
             position: 'absolute',
             top: '5px',
             right: '5px',
-            zIndex: '10'
+            zIndex: '1010' // Higher than sticky wrapper z-index
         })
         .html('<i class="bi bi-dash-lg"></i>')
         .on('click', function() {
