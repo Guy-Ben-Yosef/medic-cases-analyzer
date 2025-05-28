@@ -89,41 +89,59 @@ function activateStickyNav(navWrapper) {
         // Position the navigation relative to the image container
         positionStickyNav(navWrapper);
         
-        // Update button text to icons only
-        $('#pageNavigationButtons .btn').each(function() {
-            const $btn = $(this);
-            const text = $btn.text().trim();
-            const $icon = $btn.find('i').clone();
-            
-            // Store original text in data attribute
-            $btn.data('original-text', text);
-            
-            // Wrap text in span for hiding
-            if (!$btn.find('.btn-text').length) {
-                $btn.html('');
-                $btn.append($icon);
-                $btn.append(' <span class="btn-text">' + text.replace($icon.prop('outerHTML'), '').trim() + '</span>');
-            }
-        });
+        // Add page counter if not exists
+        if (!navWrapper.find('.sticky-page-counter').length) {
+            addPageCounter(navWrapper);
+        }
+        
+        // Update page counter
+        updatePageCounter();
         
         // Add tooltips for accessibility
         addNavigationTooltips();
     }
 }
 
+// Add page counter to sticky navigation
+function addPageCounter(navWrapper) {
+    const pageCounter = $('<div>')
+        .addClass('sticky-page-counter')
+        .html(`
+            <div class="page-counter-display">
+                <span class="current-page">1</span>
+                <span class="page-separator">/</span>
+                <span class="total-pages">1</span>
+            </div>
+        `);
+    
+    // Insert counter at the top of the navigation
+    navWrapper.find('#pageNavigationButtons').prepend(pageCounter);
+}
+
+// Update page counter with current values
+function updatePageCounter() {
+    const counter = $('.sticky-page-counter');
+    if (counter.length && typeof currentPageNumber !== 'undefined' && typeof allPageNumbers !== 'undefined') {
+        counter.find('.current-page').text(currentPageNumber || 1);
+        counter.find('.total-pages').text(allPageNumbers.length || 1);
+    }
+}
+
 // Position sticky navigation relative to content
 function positionStickyNav(navWrapper) {
-    // Get the image container position and dimensions
-    const imageContainer = $('#pageImageContainer:visible, #pageTextContainer:visible').first();
+    // Get the main image container (the actual content area)
+    const imageMainContainer = $('.image-main-container');
     
-    if (imageContainer.length) {
-        const containerOffset = imageContainer.offset();
-        const containerWidth = imageContainer.outerWidth();
-        const containerHeight = imageContainer.outerHeight();
+    if (imageMainContainer.length) {
+        const containerOffset = imageMainContainer.offset();
+        const containerWidth = imageMainContainer.outerWidth();
+        const containerHeight = imageMainContainer.outerHeight();
+        const navWidth = navWrapper.outerWidth();
         const navHeight = navWrapper.outerHeight();
         
-        // Calculate center position relative to viewport
+        // Calculate position to align with right edge of image container
         const scrollTop = $(window).scrollTop();
+        const leftPosition = containerOffset.left + containerWidth + 15; // 15px gap from container
         const topPosition = containerOffset.top - scrollTop + (containerHeight / 2) - (navHeight / 2);
         
         // Ensure navigation stays within viewport bounds
@@ -131,12 +149,16 @@ function positionStickyNav(navWrapper) {
         const maxTop = $(window).height() - navHeight - 20;
         const finalTop = Math.max(minTop, Math.min(topPosition, maxTop));
         
+        // Ensure navigation doesn't go off-screen horizontally
+        const maxLeft = $(window).width() - navWidth - 20;
+        const finalLeft = Math.min(leftPosition, maxLeft);
+        
         // Update CSS to position correctly
         navWrapper.css({
             'position': 'fixed',
             'top': finalTop + 'px',
-            'left': '50%',
-            'transform': 'translateX(-50%)'
+            'left': finalLeft + 'px',
+            'transform': 'none'
         });
     }
 }
@@ -185,6 +207,8 @@ function handleStickyScroll() {
 // Deactivate sticky navigation
 function deactivateStickyNav(navWrapper) {
     navWrapper.removeClass('sticky-active');
+    // Remove page counter
+    navWrapper.find('.sticky-page-counter').remove();
     // Reset inline styles
     navWrapper.css({
         'position': '',
@@ -433,5 +457,6 @@ function addKeyboardShortcuts() {
 window.stickyFeatures = {
     initialize: initializeStickyFeatures,
     updateFloatingButton: updateFloatingNotesButton,
-    addKeyboardShortcuts: addKeyboardShortcuts
+    addKeyboardShortcuts: addKeyboardShortcuts,
+    updatePageCounter: updatePageCounter
 };

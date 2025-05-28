@@ -219,17 +219,36 @@
 /* Navigation buttons styling */
 #pageNavigationButtons {
     margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 60px; /* Fixed narrow width */
+}
+
+#pageNavigationButtons .btn-group {
+    flex-direction: column !important;
+    width: 100%;
 }
 
 #pageNavigationButtons .btn {
-    padding: 0.375rem 0.75rem;
+    padding: 0.5rem;
     display: flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px; /* Touch-friendly size */
+    border-radius: 4px !important; /* Override btn-group rounding */
+    margin-bottom: 2px;
 }
 
 #pageNavigationButtons .btn i {
-    font-size: 0.8rem;
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Hide text by default, show only icons */
+#pageNavigationButtons .btn-text {
+    display: none;
 }
 
 #prevMatchingPageBtn, #nextMatchingPageBtn {

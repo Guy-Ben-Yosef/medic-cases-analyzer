@@ -39,19 +39,24 @@
     z-index: 101;
 }
 
-/* Compact mode for sticky navigation */
-.sticky-nav-wrapper.sticky-active #pageNavigationButtons .btn {
-    padding: 0.5rem;
-    font-size: 0.875rem;
+/* Sticky navigation maintains same compact design */
+.sticky-nav-wrapper.sticky-active {
+    position: fixed;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 10px;
+    animation: fadeInSticky 0.3s ease-out;
+    z-index: 101;
 }
 
-.sticky-nav-wrapper.sticky-active #pageNavigationButtons .btn-text {
-    display: none;
-}
-
-.sticky-nav-wrapper.sticky-active #pageNavigationButtons .btn i {
-    font-size: 1rem;
+.sticky-nav-wrapper.sticky-active #pageNavigationButtons {
     margin: 0;
+}
+
+.sticky-nav-wrapper.sticky-active #pageNavigationButtons .btn {
+    min-height: 40px;
+    padding: 0.4rem;
 }
 
 /* Minimized notes state */
@@ -251,4 +256,52 @@
 
 .sticky-notes-wrapper.sticky-active.has-scroll::after {
     opacity: 1;
+}
+
+/* Sticky page counter styling */
+.sticky-page-counter {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.page-counter-display {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.current-page {
+    color: #0d6efd;
+    font-weight: 700;
+    min-width: 20px;
+}
+
+.page-separator {
+    color: #6c757d;
+    margin: 0 2px;
+}
+
+.total-pages {
+    color: #6c757d;
+    min-width: 20px;
+}
+
+/* Mobile responsive for page counter */
+@media (max-width: 768px) {
+    .sticky-page-counter {
+        padding: 6px 8px;
+        margin-bottom: 8px;
+    }
+    
+    .page-counter-display {
+        font-size: 0.8rem;
+    }
 }

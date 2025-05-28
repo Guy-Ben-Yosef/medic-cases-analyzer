@@ -610,6 +610,11 @@ function displayPageContent(pageNumber) {
         
         // Update navigation buttons after changing the page
         updateNavigationButtonStates();
+
+        // Update sticky page counter if active
+        if (window.stickyFeatures && $('.sticky-nav-wrapper').hasClass('sticky-active')) {
+            window.stickyFeatures.updatePageCounter();
+        }
     }
 }
 
@@ -1013,6 +1018,13 @@ function navigateToPage(pageNumber) {
     
     // Find the page list item and trigger a click to navigate
     $(`#pageList .list-group-item[data-page="${pageNumber}"]`).trigger('click');
+    
+    // Update sticky page counter if active
+    setTimeout(function() {
+        if (window.stickyFeatures && $('.sticky-nav-wrapper').hasClass('sticky-active')) {
+            window.stickyFeatures.updatePageCounter();
+        }
+    }, 50);
 }
 
 // Initialize Socket.IO connection
