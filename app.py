@@ -387,16 +387,6 @@ def search_results():
     except Exception as e:
         return jsonify({'error': f'Error processing search: {str(e)}'}), 500
 
-@app.route('/download-json/<result_id>/<filename>')
-def download_json(result_id, filename):
-    """Download the JSON results file."""
-    base_filename = os.path.splitext(filename)[0]
-    return send_from_directory(
-        app.config['RESULTS_FOLDER'],
-        f"{result_id}_{base_filename}_ocr_results.json",
-        as_attachment=True
-    )
-
 @app.route('/publish-notes', methods=['POST'])
 def publish_notes():
     """Generate and save a docx file with multiple note sets for each page."""
@@ -416,10 +406,54 @@ def publish_notes():
     family_doctor_dates = []
     orthopedicHealthInsurance_doctor_dates = []
     orthopedicHospital_doctor_dates = []
+    
+    # Helper function to parse date for sorting
+    def parse_date_for_sorting(date_str):
+        """Parse date string for proper sorting. Handle various date formats."""
+        if not date_str or date_str.strip() == '':
+            return datetime.datetime.min  # Put empty dates at the beginning
+        
+        try:
+            # Try different date formats commonly used
+            date_formats = [
+                '%d/%m/%Y',    # DD/MM/YYYY
+                '%d.%m.%Y',    # DD.MM.YYYY
+                '%d-%m-%Y',    # DD-MM-YYYY
+                '%Y-%m-%d',    # YYYY-MM-DD
+                '%d/%m/%y',    # DD/MM/YY
+                '%d.%m.%y',    # DD.MM.YY
+                '%d-%m-%y',    # DD-MM-YY
+            ]
+            
+            date_str = date_str.strip()
+            for date_format in date_formats:
+                try:
+                    return datetime.datetime.strptime(date_str, date_format)
+                except ValueError:
+                    continue
+            
+            # If no format works, try to extract numbers and create a date
+            # This is a fallback for unusual formats
+            import re
+            numbers = re.findall(r'\d+', date_str)
+            if len(numbers) >= 3:
+                day, month, year = int(numbers[0]), int(numbers[1]), int(numbers[2])
+                # Handle 2-digit years
+                if year < 100:
+                    year += 2000 if year < 50 else 1900
+                return datetime.datetime(year, month, day)
+            
+        except Exception as e:
+            print(f"Error parsing date '{date_str}': {str(e)}")
+        
+        # If all else fails, return a date far in the future so it sorts last
+        return datetime.datetime.max
+    
+    # Collect dates for each doctor type
     for page_num in note_sets_data:
         page_note_sets = note_sets_data.get(str(page_num), [])
         for note_set in page_note_sets:
-            # switch cases between family doctor and orthopedic doctor
+            # Switch cases between family doctor and orthopedic doctor
             if note_set.get('doctorType') == 'רופא משפחה':
                 family_doctor_dates.append(note_set.get('caseDate', ''))
             elif note_set.get('doctorType') == 'אורתופד':
@@ -427,6 +461,13 @@ def publish_notes():
                     orthopedicHospital_doctor_dates.append(note_set.get('caseDate', ''))
                 else:
                     orthopedicHealthInsurance_doctor_dates.append(note_set.get('caseDate', ''))
+    
+    # Sort dates for each doctor type
+    family_doctor_dates.sort(key=parse_date_for_sorting)
+    orthopedicHealthInsurance_doctor_dates.sort(key=parse_date_for_sorting)
+    orthopedicHospital_doctor_dates.sort(key=parse_date_for_sorting)
+    
+    # Add sorted dates to markdown content
     markdown_content += f"  * רופא משפחה -- {', '.join(family_doctor_dates)}\n"
     markdown_content += f"  * אורתופד -- {', '.join(orthopedicHealthInsurance_doctor_dates)}\n"
     markdown_content += "* בתי חולים --\n"
@@ -435,7 +476,7 @@ def publish_notes():
 
     markdown_content += "  1. במסמכים הרפואיים שעמדו לפני מצאתי רישומים רבים בהם מתוארים **כאבים בגב התחתון ובצוואר עובר לתאונה הראשונה**. להלן, חלק מאותן הרשומות:\n"
     
-    # Acquire all notes and sort them by date and add to markdown content
+    # Acquire all notes and sort them by date
     all_notes = []
     for page_num in note_sets_data:
         page_note_sets = note_sets_data.get(str(page_num), [])
@@ -443,10 +484,11 @@ def publish_notes():
             # Add each note set to the list
             all_notes.append(note_set)
 
-    # Sort each and each note (not note set) by date
-    all_notes.sort(key=lambda x: (x.get('caseDate', ''), x.get('doctorType', '')))
-    for i, note in enumerate(all_notes):
-        # Add each note to the markdown content
+    # Sort all notes by date first, then by doctor type
+    all_notes.sort(key=lambda x: (parse_date_for_sorting(x.get('caseDate', '')), x.get('doctorType', '')))
+    
+    # Add each sorted note to the markdown content
+    for i, note in enumerate(all_notes, 1):  # Start enumeration from 1
         markdown_content += f"  {i}. {note.get('doctorType', 'Unknown')} -- רשם ביום {note.get('caseDate', 'Unknown')}: {note.get('citationNotes', '')}\n"
     
     try:
