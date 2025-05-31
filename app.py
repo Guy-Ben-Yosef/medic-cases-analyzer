@@ -493,11 +493,11 @@ def publish_notes():
     # Add sorted and formatted dates to markdown content
     markdown_content += f"  * רופא משפחה -- {', '.join(family_doctor_dates_formatted)}\n"
     markdown_content += f"  * אורתופד -- {', '.join(orthopedicHealthInsurance_dates_formatted)}\n"
-    markdown_content += "* בתי חולים --\n"
+    markdown_content += "* בתי חולים --\n\n\n"
     if orthopedicHospital_dates_formatted:
         markdown_content += f"  * אורתופד -- {', '.join(orthopedicHospital_dates_formatted)}\n"
 
-    markdown_content += "  1. במסמכים הרפואיים שעמדו לפני מצאתי רישומים רבים בהם מתוארים **כאבים בגב התחתון ובצוואר עובר לתאונה הראשונה**. להלן, חלק מאותן הרשומות:\n"
+    markdown_content += "  1. במסמכים הרפואיים שעמדו לפני מצאתי רישומים רבים בהם מתוארים **כאבים בגב התחתון ובצוואר עובר לתאונה הראשונה**. להלן, חלק מאותן הרשומות:\n\n"
     
     # Acquire all notes and sort them by date
     all_notes = []
@@ -510,10 +510,13 @@ def publish_notes():
     # Sort all notes by date first, then by doctor type
     all_notes.sort(key=lambda x: (parse_date_for_sorting(x.get('caseDate', '')), x.get('doctorType', '')))
     
+    # hebrew_letters = "אבגדהוזחטיכלמנסעפצקרשת"
+    english_letters = "abcdeghijklmnopqrstuvwxyz"
+
     # Add each sorted note to the markdown content
-    for i, note in enumerate(all_notes, 1):  # Start enumeration from 1
+    for i, note in enumerate(all_notes):  # Start enumeration from 1
         formatted_date = format_date_to_display(note.get('caseDate', 'Unknown'))
-        markdown_content += f"  {i}. {note.get('doctorType', 'Unknown')} -- רשם ביום {formatted_date}: {note.get('citationNotes', '')}\n"
+        markdown_content += f'    {english_letters[i]}. {note.get('doctorType', 'Unknown')} רשם ביום {formatted_date}: "{note.get('citationNotes', '')}".\n'
     
     try:
         # Generate a unique filename with timestamp
