@@ -449,6 +449,24 @@ def publish_notes():
         # If all else fails, return a date far in the future so it sorts last
         return datetime.datetime.max
     
+    # Helper function to format date to dd.mm.yy
+    def format_date_to_display(date_str):
+        """Convert date string to dd.mm.yy format for display."""
+        if not date_str or date_str.strip() == '':
+            return date_str
+        
+        try:
+            # Parse the date first
+            parsed_date = parse_date_for_sorting(date_str)
+            if parsed_date in (datetime.datetime.min, datetime.datetime.max):
+                return date_str  # Return original if parsing failed
+            
+            # Format to dd.mm.yy
+            return parsed_date.strftime('%d.%m.%y')
+        except Exception as e:
+            print(f"Error formatting date '{date_str}': {str(e)}")
+            return date_str  # Return original if formatting fails
+    
     # Collect dates for each doctor type
     for page_num in note_sets_data:
         page_note_sets = note_sets_data.get(str(page_num), [])
@@ -462,17 +480,22 @@ def publish_notes():
                 else:
                     orthopedicHealthInsurance_doctor_dates.append(note_set.get('caseDate', ''))
     
-    # Sort dates for each doctor type
+    # Sort dates for each doctor type and format them for display
     family_doctor_dates.sort(key=parse_date_for_sorting)
     orthopedicHealthInsurance_doctor_dates.sort(key=parse_date_for_sorting)
     orthopedicHospital_doctor_dates.sort(key=parse_date_for_sorting)
     
-    # Add sorted dates to markdown content
-    markdown_content += f"  * רופא משפחה -- {', '.join(family_doctor_dates)}\n"
-    markdown_content += f"  * אורתופד -- {', '.join(orthopedicHealthInsurance_doctor_dates)}\n"
+    # Format dates to dd.mm.yy for display
+    family_doctor_dates_formatted = [format_date_to_display(date) for date in family_doctor_dates]
+    orthopedicHealthInsurance_dates_formatted = [format_date_to_display(date) for date in orthopedicHealthInsurance_doctor_dates]
+    orthopedicHospital_dates_formatted = [format_date_to_display(date) for date in orthopedicHospital_doctor_dates]
+    
+    # Add sorted and formatted dates to markdown content
+    markdown_content += f"  * רופא משפחה -- {', '.join(family_doctor_dates_formatted)}\n"
+    markdown_content += f"  * אורתופד -- {', '.join(orthopedicHealthInsurance_dates_formatted)}\n"
     markdown_content += "* בתי חולים --\n"
-    if orthopedicHospital_doctor_dates:
-        markdown_content += f"  * אורתופד -- {', '.join(orthopedicHospital_doctor_dates)}\n"
+    if orthopedicHospital_dates_formatted:
+        markdown_content += f"  * אורתופד -- {', '.join(orthopedicHospital_dates_formatted)}\n"
 
     markdown_content += "  1. במסמכים הרפואיים שעמדו לפני מצאתי רישומים רבים בהם מתוארים **כאבים בגב התחתון ובצוואר עובר לתאונה הראשונה**. להלן, חלק מאותן הרשומות:\n"
     
@@ -489,7 +512,8 @@ def publish_notes():
     
     # Add each sorted note to the markdown content
     for i, note in enumerate(all_notes, 1):  # Start enumeration from 1
-        markdown_content += f"  {i}. {note.get('doctorType', 'Unknown')} -- רשם ביום {note.get('caseDate', 'Unknown')}: {note.get('citationNotes', '')}\n"
+        formatted_date = format_date_to_display(note.get('caseDate', 'Unknown'))
+        markdown_content += f"  {i}. {note.get('doctorType', 'Unknown')} -- רשם ביום {formatted_date}: {note.get('citationNotes', '')}\n"
     
     try:
         # Generate a unique filename with timestamp
