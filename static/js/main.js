@@ -551,6 +551,9 @@ function displayPageContent(pageNumber) {
                         <button id="toggleHighlightBtn" class="btn btn-sm btn-light" title="Toggle Highlights">
                             Show Without Highlights
                         </button>` : ''}
+                        <button id="toggleWordHighlightBtn" class="btn btn-sm btn-light" title="Toggle Word Highlights">
+                            Show Word Highlights
+                        </button>
                     </div>
                     <div class="image-wrapper">
                         <img src="${page.image_url}" class="page-image-content" id="pageImageContent" alt="Page ${pageNumber}">
@@ -565,6 +568,7 @@ function displayPageContent(pageNumber) {
             if (page.has_annotations && page.clean_image_url) {
                 $('#toggleHighlightBtn').off('click').on('click', toggleHighlightedImage);
             }
+            $('#toggleWordHighlightBtn').off('click').on('click', toggleWordHighlights);
         } else {
             $('#pageImage').html('<p class="text-muted">Image not available for this page.</p>');
         }
@@ -1407,6 +1411,38 @@ function toggleHighlightedImage() {
         
         // Toggle the state
         showingCleanImage = !showingCleanImage;
+    }
+}
+
+function toggleWordHighlights() {
+    if (!currentPageNumber || !filteredResults) return;
+    
+    const page = getCurrentPageData();
+    if (!page || !page.image_url) return;
+    
+    // Get current search words
+    const searchWords = filteredResults.search_information?.search_words || [];
+    if (searchWords.length === 0) {
+        alert('No search words to highlight');
+        return;
+    }
+    
+    const $image = $('#pageImageContent');
+    const $toggleBtn = $('#toggleWordHighlightBtn');
+    
+    if ($toggleBtn.text().includes('Show Word Highlights')) {
+        // Switch to highlighted image
+        const wordsParam = searchWords.join(',');
+        const highlightedUrl = `/highlighted-page-images/${currentResultId}/${currentPageNumber}?words=${encodeURIComponent(wordsParam)}`;
+        
+        $image.attr('src', highlightedUrl);
+        $toggleBtn.text('Hide Word Highlights');
+        $toggleBtn.removeClass('btn-light').addClass('btn-warning');
+    } else {
+        // Switch back to original image
+        $image.attr('src', page.image_url);
+        $toggleBtn.text('Show Word Highlights');
+        $toggleBtn.removeClass('btn-warning').addClass('btn-light');
     }
 }
 

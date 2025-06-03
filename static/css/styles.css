@@ -527,3 +527,42 @@
     font-weight: normal;
     font-size: 0.7em;
 }
+
+/* Word Highlight Toggle Button Styles */
+#toggleWordHighlightBtn {
+    background-color: #ff1493;
+    color: #fff;
+    font-weight: 500;
+    margin-left: 5px;
+    border-color: #ff1493;
+}
+
+#toggleWordHighlightBtn:hover {
+    background-color: #e91284;
+    border-color: #e91284;
+}
+
+#toggleWordHighlightBtn:focus {
+    box-shadow: 0 0 0 0.25rem rgba(255, 20, 147, 0.25);
+}
+
+#toggleWordHighlightBtn.btn-warning {
+    background-color: #ff1493;
+    color: #fff;
+}
+
+#toggleWordHighlightBtn.btn-warning:hover {
+    background-color: #e91284;
+}
+
+/* Word highlight notice styles */
+.word-highlighted-notice {
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #dc3545;
+    margin-bottom: 10px;
+    padding: 8px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 4px;
+}

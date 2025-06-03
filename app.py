@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 from pdf_ocr_processor import process_pdf
 from ocr_results_searcher import search_words_in_pages, normalize_text
 from progress_tracker import init_socketio, start_progress_tracking, update_progress, complete_progress, get_progress
+from word_highlighter import highlight_page_on_demand
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -613,6 +614,38 @@ def serve_clean_page_image(unique_id, page_number):
     image_filename = f"page{page_number}_no_highlights.png"
     clean_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id, "clean_images")
     return send_from_directory(clean_images_folder, image_filename)
+
+@app.route('/highlighted-page-images/<unique_id>/<int:page_number>')
+def serve_highlighted_page_image(unique_id, page_number):
+    """Serve a highlighted page image with search words marked."""
+    try:
+        # Get search words from query parameters
+        search_words_param = request.args.get('words', '')
+        if not search_words_param:
+            return jsonify({'error': 'No search words provided'}), 400
+        
+        # Parse search words (comma-separated)
+        search_words = set(word.strip() for word in search_words_param.split(',') if word.strip())
+        
+        if not search_words:
+            return jsonify({'error': 'No valid search words provided'}), 400
+        
+        # Create highlighted image on demand
+        success, highlighted_image_path, highlight_count = highlight_page_on_demand(
+            unique_id, page_number, search_words, app.config['IMAGES_FOLDER']
+        )
+        
+        if success and os.path.exists(highlighted_image_path):
+            # Get just the filename and folder structure
+            highlighted_images_folder = os.path.join(app.config['IMAGES_FOLDER'], unique_id, "highlighted_images")
+            highlighted_image_filename = os.path.basename(highlighted_image_path)
+            
+            return send_from_directory(highlighted_images_folder, highlighted_image_filename)
+        else:
+            return jsonify({'error': 'Failed to create highlighted image'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Error serving highlighted image: {str(e)}'}), 500
 
 def display_ascii_art():
     """
