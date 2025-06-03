@@ -490,30 +490,6 @@
     text-align: right;
 }
 
-/* Highlight Toggle Button Styles */
-#toggleHighlightBtn {
-    background-color: #ffc107;
-    color: #000;
-    font-weight: 500;
-    margin-left: 5px;
-}
-
-#toggleHighlightBtn:hover {
-    background-color: #ffca2c;
-}
-
-/* Highlighted notice styles */
-.highlighted-notice {
-    font-size: 0.85rem;
-    font-style: italic;
-    color: #dc3545;
-    margin-bottom: 10px;
-    padding: 8px;
-    background-color: #fff3cd;
-    border: 1px solid #ffeeba;
-    border-radius: 4px;
-}
-
 /* Make highlighted pages more noticeable in the list */
 .highlighted-page {
     background-color: #fff3cd;
@@ -530,20 +506,25 @@
 
 /* Word Highlight Toggle Button Styles */
 #toggleWordHighlightBtn {
-    background-color: #ff1493;
-    color: #fff;
+    background-color: #ff1493 !important;
+    color: #fff !important;
+    border-color: #ff1493 !important;
     font-weight: 500;
-    margin-left: 5px;
-    border-color: #ff1493;
 }
 
 #toggleWordHighlightBtn:hover {
-    background-color: #e91284;
-    border-color: #e91284;
+    background-color: #e91284 !important;
+    border-color: #e91284 !important;
+    color: #fff !important;
 }
 
 #toggleWordHighlightBtn:focus {
-    box-shadow: 0 0 0 0.25rem rgba(255, 20, 147, 0.25);
+    box-shadow: 0 0 0 0.25rem rgba(255, 20, 147, 0.25) !important;
+}
+
+#toggleWordHighlightBtn i {
+    font-size: 1rem;
+    margin: 0;
 }
 
 #toggleWordHighlightBtn.btn-warning {

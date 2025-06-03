@@ -461,6 +461,32 @@ function displayResults() {
             updatePageListItemWithNoteIndicator(pageNumber);
         }
     });
+
+    // Create navigation buttons HTML with word highlight button
+    $('#pageNavigationButtons').html(`
+        <div class="btn-group-vertical" role="group" aria-label="Page Navigation">
+            <button type="button" class="btn btn-outline-secondary" id="prevPageBtn" title="Previous Page">
+                <i class="bi bi-arrow-up"></i>
+                <span class="btn-text">Prev</span>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="nextPageBtn" title="Next Page">
+                <i class="bi bi-arrow-down"></i>
+                <span class="btn-text">Next</span>
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="prevMatchingPageBtn" title="Previous Matching Page">
+                <i class="bi bi-arrow-up-circle"></i>
+                <span class="btn-text">Prev Match</span>
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="nextMatchingPageBtn" title="Next Matching Page">
+                <i class="bi bi-arrow-down-circle"></i>
+                <span class="btn-text">Next Match</span>
+            </button>
+            <button type="button" class="btn" id="toggleWordHighlightBtn" title="Show Word Highlights">
+                <i class="bi bi-brush"></i>
+                <span class="btn-text">Highlights</span>
+            </button>
+        </div>
+    `);
     
     // Show the navigation buttons
     $('#pageNavigationButtons').removeClass('d-none');
@@ -547,13 +573,6 @@ function displayPageContent(pageNumber) {
                         <button id="zoomIn" class="btn btn-sm btn-light" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
                         <button id="zoomOut" class="btn btn-sm btn-light" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
                         <button id="resetZoom" class="btn btn-sm btn-light" title="Reset"><i class="bi bi-arrows-angle-contract"></i></button>
-                        ${page.has_annotations && page.clean_image_url ? `
-                        <button id="toggleHighlightBtn" class="btn btn-sm btn-light" title="Toggle Highlights">
-                            Show Without Highlights
-                        </button>` : ''}
-                        <button id="toggleWordHighlightBtn" class="btn btn-sm btn-light" title="Toggle Word Highlights">
-                            Show Word Highlights
-                        </button>
                     </div>
                     <div class="image-wrapper">
                         <img src="${page.image_url}" class="page-image-content" id="pageImageContent" alt="Page ${pageNumber}">
@@ -564,11 +583,6 @@ function displayPageContent(pageNumber) {
             // Initialize zoom and pan functionality
             initializeImageZoomPan();
             
-            // Add event handler for toggle highlight button if present
-            if (page.has_annotations && page.clean_image_url) {
-                $('#toggleHighlightBtn').off('click').on('click', toggleHighlightedImage);
-            }
-            $('#toggleWordHighlightBtn').off('click').on('click', toggleWordHighlights);
         } else {
             $('#pageImage').html('<p class="text-muted">Image not available for this page.</p>');
         }
@@ -614,6 +628,7 @@ function displayPageContent(pageNumber) {
         
         // Update navigation buttons after changing the page
         updateNavigationButtonStates();
+        $('#toggleWordHighlightBtn').attr('data-showing-highlights', 'false').attr('title', 'Show Word Highlights');
 
         // Update sticky page counter if active
         if (window.stickyFeatures && $('.sticky-nav-wrapper').hasClass('sticky-active')) {
@@ -905,6 +920,7 @@ function initializeNavigation() {
     $('#nextPageBtn').off('click').on('click', navigateToNextPage);
     $('#prevMatchingPageBtn').off('click').on('click', navigateToPreviousMatchingPage);
     $('#nextMatchingPageBtn').off('click').on('click', navigateToNextMatchingPage);
+    $('#toggleWordHighlightBtn').off('click').on('click', toggleWordHighlights);
 }
 
 // Update the state of navigation buttons based on current page
@@ -1430,19 +1446,19 @@ function toggleWordHighlights() {
     const $image = $('#pageImageContent');
     const $toggleBtn = $('#toggleWordHighlightBtn');
     
-    if ($toggleBtn.text().includes('Show Word Highlights')) {
+    if ($toggleBtn.attr('data-showing-highlights') !== 'true') {
         // Switch to highlighted image
         const wordsParam = searchWords.join(',');
         const highlightedUrl = `/highlighted-page-images/${currentResultId}/${currentPageNumber}?words=${encodeURIComponent(wordsParam)}`;
         
         $image.attr('src', highlightedUrl);
-        $toggleBtn.text('Hide Word Highlights');
-        $toggleBtn.removeClass('btn-light').addClass('btn-warning');
+        $toggleBtn.attr('data-showing-highlights', 'true');
+        $toggleBtn.attr('title', 'Hide Word Highlights');
     } else {
         // Switch back to original image
         $image.attr('src', page.image_url);
-        $toggleBtn.text('Show Word Highlights');
-        $toggleBtn.removeClass('btn-warning').addClass('btn-light');
+        $toggleBtn.attr('data-showing-highlights', 'false');
+        $toggleBtn.attr('title', 'Show Word Highlights');
     }
 }
 
